@@ -102,7 +102,7 @@ def write_options(optionsFile, options, sections_dict=KEYS.SECTIONS,
     enc = json.JSONEncoder()
     sep = _sep_char()
     com = _com_char()
-    format_ = '{:<40}'
+    format_ = '{0:<40}'
 
     arrangement, others = _arrange_options(options, sections_dict)
 
@@ -115,8 +115,8 @@ def write_options(optionsFile, options, sections_dict=KEYS.SECTIONS,
         " will be overwritten on file read.\n")
     for section in arrangement:
         if arrangement[section]:
-            file_out.write(com + '##{:#>35}###\n'.format(''))
-            file_out.write(com + '##{:^35}###\n'.format(section))
+            file_out.write(com + '##{0:#>35}###\n'.format(''))
+            file_out.write(com + '##{0:^35}###\n'.format(section))
             for key in arrangement[section]:
                 if key in comments_dict:
                     comment = comments_dict[key].splitlines()
@@ -126,7 +126,7 @@ def write_options(optionsFile, options, sections_dict=KEYS.SECTIONS,
                     enc.encode(options[key]) + '\n')
     if others:
         file_out.write('\n')
-        file_out.write(com + '##{:#>35}###\n'.format(''))
+        file_out.write(com + '##{0:#>35}###\n'.format(''))
         for key in others:
             if key in comments_dict:
                 comment = comments_dict[key].splitlines()
@@ -304,15 +304,15 @@ def place_simarray_mdp_vars(fields):
     fields['coul-lambdas'] = ''
     fields['vdw-lambdas'] = ''
     for f, c, v in zip(fields['fep'], fields['coul'], fields['vdw']):
-        fields['fep-lambdas'] += '{:0.1f} '.format(f)
-        fields['coul-lambdas'] += '{:0.1f} '.format(c)
-        fields['vdw-lambdas'] += '{:0.1f} '.format(v)
+        fields['fep-lambdas'] += '{0:0.1f} '.format(f)
+        fields['coul-lambdas'] += '{0:0.1f} '.format(c)
+        fields['vdw-lambdas'] += '{0:0.1f} '.format(v)
 
     fields['wl-weights'] = ''
 
     if fields['initial-weights']:
         for w in fields['weights']:
-            fields['wl-weights'] += '{:0.5f} '.format(w)
+            fields['wl-weights'] += '{0:0.5f} '.format(w)
         if not len(fields['fep']) == len(fields['weights']):
             print('Number of weights not equal to number of states, please' +
                 ' address')
