@@ -33,7 +33,10 @@ class Keys:
     sim_time = 'sim-time-ns'
     sim_weights = 'sim-initial-weights'
     sim_fixed_weights = 'sim-fixed-weights'
-    SECTIONS['Simulation'] = [sim_time, sim_weights, sim_fixed_weights]
+    sim_weight_values = 'sim-value-of-weights'
+    sim_incrementor = 'sim-weight-incrementor'
+    SECTIONS['Simulation'] = [sim_time, sim_weights, sim_fixed_weights,
+        sim_weight_values, sim_incrementor]
     ################################################
     # Sim Array
     mdr_count = 'mdr-number-of-simulations'
@@ -209,6 +212,8 @@ def option_defaults():
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
+    options[KEYS.sim_weight_values] = []
+    options[KEYS.sim_incrementor] = 1
     options[KEYS.mdr_count] = 1
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
@@ -246,19 +251,22 @@ def backup_file(directory, filename):
         os.rename(fileOut, backupName)
     return fileOut
 
+def expandpath(path):
+    return os.path.realpath(os.path.expanduser(os.path.expandvars(path)))
+
 #################################################################################
 #################################################################################
 
 def place_simarray_vars(fields):
-    fields['outputfile'] = os.path.join(fields['path'], fields['base'] +
-        fields['suffix'], fields['base'])
-    fields['workdir'] = os.path.join(fields['path'], fields['base'] +
+    fields['outputfile'] = os.path.join(fields['path'], fields['job-name'] +
+        fields['suffix'], fields['job-name'])
+    fields['workdir'] = os.path.join(fields['path'], fields['job-name'] +
         fields['suffix'])
     fields['infolder'] = os.path.join('..', '')
     fields['jobstatus'] = os.path.join('..', 'jobstatus.txt')
 
     text_ = """#!/bin/sh
-#SBATCH --job-name={base}{suffix}
+#SBATCH --job-name={job-name}{suffix}
 #SBATCH --partition=serial
 #SBATCH --nodes=1
 #SBATCH --ntasks={ntasks}
@@ -282,14 +290,14 @@ export GMX_SUPPRESS_DUMP=1 #prevent step file output when parameters don't conve
 sleep 1
 
 #Change the job status to 'SUBMITTED'
-echo "SUBMITTED {suffix}" >> {jobstatus}
+echo "SUBMITTED {job-name}{suffix} `date`" >> {jobstatus}
 echo "Job Started at `date`"
 
 #NVT PRODUCTION
-grompp_d -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {base}.tpr -maxwarn 15
-mdrun_d ${{THREADINFO}} -deffnm {base}
+grompp_d -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
+mdrun_d ${{THREADINFO}} -deffnm {job-name}
 
-echo "FINISHED {suffix}" >> {jobstatus}
+echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
 # print end time
 echo
 echo "Job Ended at `date`"
@@ -452,7 +460,7 @@ lmc-seed                 = {lmc-seed}
 ; Seed for Monte Carlo in lambda space
 wl-scale                 = 0.5
 wl-ratio                 = 0.8
-init-wl-delta            = 1.0
+init-wl-delta            = {incrementor:0.3f}
 wl-oneovert              = yes
 """.format(**fields)
 
@@ -469,23 +477,24 @@ def generate(opts, submit=False, randseed=False):
         return
 
     cur_dir = os.getcwd()
-    dir_ = os.path.expandvars(os.path.expanduser(opts[KEYS.script_dir]))
+    dir_ = expandpath(opts[KEYS.script_dir])
     if not os.path.exists(dir_):
         os.mkdir(dir_)
     os.chdir(dir_)
-    path = os.path.expandvars(os.path.expanduser(opts[KEYS.work_dir]))
+    path = expandpath(opts[KEYS.work_dir])
     for i in range(opts[KEYS.mdr_count]):
         suffix = '_{0:0>2}'.format(i)
         if opts[KEYS.mdr_count] < 2:
             suffix = ''
         fields = dict()
         fields['base'] = base_name
+        fields['job-name'] = job_name
         fields['suffix'] = suffix
         fields['path'] = path
         fields['ntasks'] = opts[KEYS.mdr_threads]
         fields['queue-time'] = opts[KEYS.mdr_queue_time]
         fields['gro-in'] = base_name + suffix
-        fields['mdp-in'] = base_name + suffix
+        fields['mdp-in'] = job_name + suffix
         if randseed:
             fields['gro-in'] = base_name
             try:
@@ -499,35 +508,35 @@ def generate(opts, submit=False, randseed=False):
                 print(ioex)
         else:
             try:
-                parameters(opts, name=base_name + suffix, fields=fields)
+                parameters(opts, name=job_name + suffix, fields=fields)
             except IOError as ioex:
                 print(ioex)
 
-        file_name = base_name + suffix + '.slurm'
+        file_name = job_name + suffix + '.slurm'
         file_ = open(file_name, 'w')
         file_.write(place_simarray_vars(fields))
         file_.close()
         if submit:
-            dir_name = os.path.join(path, base_name + suffix)
+            dir_name = os.path.join(path, job_name + suffix)
             if not os.path.exists(dir_name):
                 os.mkdir(dir_name)
-            # yes, this seems to be unnecessary, but it helps in debugging if 
+            # yes, this seems to be unnecessary, but it helps in debugging if
             #    directory doesn't actually have to exist to run without submit
             os.system("mv " + fields['mdp-in'] + ".mdp " +
                 os.path.join(dir_name, fields['mdp-in']) + ".mdp")
             os.system("sbatch " + file_name)
-            print("sbatch Job" + suffix)
+            print("Sbatch'd Job " + job_name + suffix)
 
     os.chdir(cur_dir)
 
 def parameters(opts, dir_='.', name=None, fields=None):
-    base_name = opts[KEYS.base_name]
-    if not base_name:
-        print('Base name not specified')
+    job_name = opts[KEYS.job_name]
+    if not job_name:
+        print('Job name not specified')
         return
 
     if not name:
-        name = base_name
+        name = job_name
 
     cur_dir = os.getcwd()
     dir_ = os.path.expandvars(os.path.expanduser(dir_))
@@ -556,6 +565,9 @@ def parameters(opts, dir_='.', name=None, fields=None):
     fields['weights'] = [0.00000, 0.00000, 0.00000, 1.28125, 2.05469, 3.20508,
         3.49414, 3.71484, 3.91797, 4.12695, 4.28906, 4.42773, 4.57812, 4.71289,
         4.81055, 4.88281, 4.74609, 4.78125]
+    if opts[KEYS.sim_weight_values]:
+        fields['weights'] = opts[KEYS.sim_weight_values]
+    fields['incrementor'] = opts[KEYS.sim_incrementor]
 
     file_name = name + '.mdp'
     file_ = open(file_name, 'w')
@@ -582,7 +594,8 @@ def main(argv=None):
     parser.add_option("--mdp", help="Output the Molecular Dynamics Parameters" +
         " (.mdp) configuration file",
         default=None, action='store_true')
-    parser.add_option("-n", help="""Base name for output""", metavar="sim")
+    parser.add_option("-n", help="""Job name for output""", metavar="sim")
+    parser.add_option("-b", help="""Base name for job input""", metavar="sim")
     parser.add_option("--submit", action='store_true')
 
     if len(argv) < 1:
@@ -607,15 +620,17 @@ def main(argv=None):
     opts[KEYS.verbosity] = verbose
 
     if options.n:
-        opts[KEYS.base_name] = options.n
+        opts[KEYS.job_name] = options.n
+    if options.b:
+        opts[KEYS.base_name] = options.b
     if options.mdp:
         opts[KEYS.setup_mdp] = options.mdp
     if options.slurm:
         opts[KEYS.setup_simarray] = options.slurm
 
     # output run options
-    if opts[KEYS.base_name]:
-        param_name = opts[KEYS.base_name] + _file_ext()
+    if opts[KEYS.job_name]:
+        param_name = opts[KEYS.job_name] + _file_ext()
         param_out = backup_file('./', param_name)
     else:
         param_name = _file_ext()
