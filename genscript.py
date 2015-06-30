@@ -22,10 +22,11 @@ class Keys:
     ################################################
     # General
     base_name = 'base-name'
+    job_name = 'job-name'
     work_dir = 'sim-dir'
     script_dir = 'scripts-dir'
     ligand = 'ligand-res-name'
-    SECTIONS['General'] = [base_name, work_dir, script_dir, ligand]
+    SECTIONS['General'] = [base_name, job_name, work_dir, script_dir, ligand]
     COMMENTS[base_name] = ('Name to prefix all files')
     ################################################
     # MDP
@@ -198,6 +199,7 @@ def option_defaults():
     # To help avoid spelling errors, the keys are kept in a container object,
     #    and each use of that key points back to the string listed there.
     options[KEYS.base_name] = None
+    options[KEYS.job_name] = None
     options[KEYS.work_dir] = '.'
     options[KEYS.script_dir] = '.'
     options[KEYS.ligand] = 'TMP'
@@ -461,6 +463,10 @@ def generate(opts, submit=False, randseed=False):
     if not base_name:
         print('Base name not specified')
         return
+    job_name = opts[KEYS.job_name]
+    if not job_name:
+        print('Job name not specified')
+        return
 
     cur_dir = os.getcwd()
     dir_ = os.path.expandvars(os.path.expanduser(opts[KEYS.script_dir]))
@@ -488,7 +494,7 @@ def generate(opts, submit=False, randseed=False):
                 seed = random.randint(0, 65536)
                 fields['gen-seed'] = seed + i
                 fields['lmc-seed'] = seed + i
-                parameters(opts, name=base_name + suffix, fields=fields)
+                parameters(opts, name=fields['mdp-in'], fields=fields)
             except IOError as ioex:
                 print(ioex)
         else:
@@ -505,6 +511,10 @@ def generate(opts, submit=False, randseed=False):
             dir_name = os.path.join(path, base_name + suffix)
             if not os.path.exists(dir_name):
                 os.mkdir(dir_name)
+            # yes, this seems to be unnecessary, but it helps in debugging if 
+            #    directory doesn't actually have to exist to run without submit
+            os.system("mv " + fields['mdp-in'] + ".mdp " +
+                os.path.join(dir_name, fields['mdp-in']) + ".mdp")
             os.system("sbatch " + file_name)
             print("sbatch Job" + suffix)
 
