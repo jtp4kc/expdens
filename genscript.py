@@ -35,8 +35,9 @@ class Keys:
     sim_fixed_weights = 'sim-fixed-weights'
     sim_weight_values = 'sim-value-of-weights'
     sim_incrementor = 'sim-weight-incrementor'
+    sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
     SECTIONS['Simulation'] = [sim_time, sim_weights, sim_fixed_weights,
-        sim_weight_values, sim_incrementor]
+        sim_weight_values, sim_incrementor, sim_fixed_lambda]
     ################################################
     # Sim Array
     mdr_count = 'mdr-number-of-simulations'
@@ -45,7 +46,7 @@ class Keys:
     mdr_genseed = 'mdr-generate-seeds'
     SECTIONS['mdrun Array'] = [mdr_count, mdr_threads, mdr_queue_time,
         mdr_genseed]
-    COMMENTS[base_name] = ('Max 20 threads (for now)')
+    COMMENTS[mdr_threads] = ('Max 20 threads (for now)')
     ################################################
     # Process Control
     verbosity = 'verbose-level'
@@ -214,6 +215,7 @@ def option_defaults():
     options[KEYS.sim_fixed_weights] = False
     options[KEYS.sim_weight_values] = []
     options[KEYS.sim_incrementor] = 1
+    options[KEYS.sim_fixed_lambda] = False
     options[KEYS.mdr_count] = 1
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
@@ -337,6 +339,11 @@ def place_simarray_mdp_vars(fields):
         fields['weights-equil'] = 'wl-delta'
         fields['wed'] = ''
 
+    if fields['fixed-lambda']:
+        fields['free-energy-flag'] = 'yes'
+    else:
+        fields['free-energy-flag'] = 'expanded'
+
     text_ = """; RUN CONTROL PARAMETERS = 
 integrator               = md-vv
 ; start time and timestep in ps = 
@@ -433,7 +440,7 @@ ref_p                    = 1.0 ; bar
 
 ; OPTIONS FOR EXPANDED ENSEMBLE SIMULATIONS
 ; Free energy control stuff  
-free-energy               = expanded
+free-energy               = {free-energy-flag}
 sc-alpha                  = 0.5
 couple-moltype            = {ligand}
 couple-lambda0            = vdw-q
@@ -550,6 +557,7 @@ def parameters(opts, dir_='.', name=None, fields=None):
     fields['time-ns'] = opts[KEYS.sim_time]
     fields['initial-weights'] = opts[KEYS.sim_weights]
     fields['fixed-weights'] = opts[KEYS.sim_fixed_weights]
+    fields['fixed-lambda'] = opts[KEYS.sim_fixed_lambda]
 
     if not 'gen-seed' in fields:
         fields['gen-seed'] = 10200
