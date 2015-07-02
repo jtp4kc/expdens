@@ -339,10 +339,20 @@ def place_simarray_mdp_vars(fields):
         fields['weights-equil'] = 'wl-delta'
         fields['wed'] = ''
 
+    fields['init-lambda'] = (fields['init-state-index'] + 1) / len(fields['fep'])
+    if fields['init-lambda'] < 0:
+        fields['init-lambda'] = 0
+    elif fields['init-lambda'] > 1:
+        fields['init-lambda'] = 1
+
     if fields['fixed-lambda']:
         fields['free-energy-flag'] = 'yes'
+        fields['ilv'] = ''
+        fields['ils'] = '; '
     else:
         fields['free-energy-flag'] = 'expanded'
+        fields['ilv'] = '; '
+        fields['ils'] = ''
 
     text_ = """; RUN CONTROL PARAMETERS = 
 integrator               = md-vv
@@ -449,7 +459,8 @@ couple-intramol           = no
 fep-lambdas               = {fep-lambdas}
 coul-lambdas              = {coul-lambdas}
 vdw-lambdas               = {vdw-lambdas}
-init_lambda_state         = {init-state-index}
+{ilv}init-lambda               = {init-lambda}
+{ils}init-lambda-state         = {init-state-index}
 symmetrized-transition-matrix = yes
 nst-transition-matrix     = 100000
 nstdhdl                   = 500
