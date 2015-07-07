@@ -7,8 +7,13 @@ import sys, os
 from optparse import OptionParser
 import json
 import datetime
+import inspect
+import math
 
 verbose = 0
+SUBS = dict()  # available subcommands, as a dictionary
+def _subcomment():
+    return "One of: " + ", ".join(SUBS.keys())
 
 class Keys:
     """Container class for the options' key strings
@@ -23,6 +28,9 @@ class Keys:
     # General
     base_name = 'base-name'
     job_name = 'job-name'
+    _job_name = '_job-name'  # private
+    _params = '_params'  # private
+    _calling_dir = '_calling-dir'  # private
     work_dir = 'sim-dir'
     script_dir = 'scripts-dir'
     ligand = 'ligand-res-name'
@@ -48,11 +56,27 @@ class Keys:
         mdr_genseed]
     COMMENTS[mdr_threads] = ('Max 20 threads (for now)')
     ################################################
+    # Automation
+    auto_time_equil = 'auto-equil-time-ns'
+    auto_time_rand = 'auto-rand-time-ns'
+    auto_time_array = 'auto-array-time-ns'
+    auto_calc_wt = 'auto-calculate-walltime'
+    SECTIONS['Automation'] = [auto_time_equil, auto_time_rand, auto_time_array,
+        auto_calc_wt]
+    ################################################
     # Process Control
     verbosity = 'verbose-level'
-    setup_simarray = 'setup-array-of-jobs'
-    setup_mdp = 'create-mdp'
-    SECTIONS['Process Control'] = [verbosity, setup_simarray, setup_mdp]
+    subcommand = 'subcommand'
+    run_mdp = 'create-mdp'
+    run_array = 'setup-array-of-jobs'
+    _submit = 'submit-jobs'  # private
+    _dryrun = 'dry-run'  # private
+    _chain_all = 'GEN_ALL'  # private
+    SECTIONS['Process Control'] = [verbosity, subcommand, run_mdp, run_array]
+    COMMENTS[subcommand] = _subcomment()
+
+    def update(self):
+        self.COMMENTS[self.subcommand] = _subcomment()
 
     # Internally calculated values
 KEYS = Keys()
@@ -208,8 +232,7 @@ def option_defaults():
     options[KEYS.script_dir] = '.'
     options[KEYS.ligand] = 'TMP'
     options[KEYS.verbosity] = 1  # Change output frequency and detail
-    options[KEYS.setup_simarray] = False
-    options[KEYS.setup_mdp] = False
+    options[KEYS.subcommand] = 'exit'
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
@@ -220,6 +243,10 @@ def option_defaults():
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
     options[KEYS.mdr_genseed] = False
+    options[KEYS.auto_time_equil] = 0.2  # ns
+    options[KEYS.auto_time_rand] = 0.2  # ns
+    options[KEYS.auto_time_array] = 0.2  # ns
+    options[KEYS.auto_calc_wt] = True
 
     return options
 
@@ -262,10 +289,35 @@ def expandpath(path):
 def place_simarray_vars(fields):
     fields['outputfile'] = os.path.join(fields['path'], fields['job-name'] +
         fields['suffix'], fields['job-name'])
-    fields['workdir'] = os.path.join(fields['path'], fields['job-name'] +
-        fields['suffix'])
+    fields['workdir-name'] = fields['job-name'] + fields['suffix']
+    fields['workdir'] = os.path.join(fields['path'], fields['workdir-name'])
     fields['infolder'] = os.path.join('..', '')
     fields['jobstatus'] = os.path.join('..', 'jobstatus.txt')
+
+    extins = 'extra-instructions'
+    if not extins in fields:
+        fields[extins] = ''
+    else:
+        fields[extins] = fields[extins].format(**fields)
+
+    if fields['calc-walltime']:
+        rate = 7.5 / 20  # 7.5 ns/day per 20 cores
+        speed = rate * fields['ntasks']  # ns/day
+        est = fields['time-ns'] / speed  # days
+        time_ = est * 1.20  # add 20% buffer
+        if time_ > 7:
+            time_ = 7  # seven day limit on serial queue
+        frac, days = math.modf(time_)
+        frac, hours = math.modf(frac * 24.0)
+        frac, mins = math.modf(frac * 60.0)
+        frac, secs = math.modf(frac * 60.0)
+
+        days = int(days)
+        hours = int(hours)
+        mins = int(mins)
+        secs = int(secs)
+        fields['queue-time'] = '{0}-{1:02}:{2:02}:{3:02}'.format(days, hours,
+            mins, secs)
 
     text_ = """#!/bin/sh
 #SBATCH --job-name={job-name}{suffix}
@@ -298,7 +350,7 @@ echo "Job Started at `date`"
 #NVT PRODUCTION
 grompp_d -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
 mdrun_d ${{THREADINFO}} -deffnm {job-name}
-
+{extra-instructions}
 echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
 # print end time
 echo
@@ -484,15 +536,16 @@ wl-oneovert              = yes
 
     return text_
 
-def generate(opts, submit=False, randseed=False):
-    base_name = opts[KEYS.base_name]
-    if not base_name:
-        print('Base name not specified')
-        return
+def generate(opts):
+    randseed = opts[KEYS.mdr_genseed]
+    submit = opts[KEYS._submit]
     job_name = opts[KEYS.job_name]
     if not job_name:
         print('Job name not specified')
         return
+    base_name = opts[KEYS.base_name]
+    if not base_name:
+        base_name = job_name
 
     cur_dir = os.getcwd()
     dir_ = expandpath(opts[KEYS.script_dir])
@@ -511,8 +564,35 @@ def generate(opts, submit=False, randseed=False):
         fields['path'] = path
         fields['ntasks'] = opts[KEYS.mdr_threads]
         fields['queue-time'] = opts[KEYS.mdr_queue_time]
+        fields['calc-walltime'] = opts[KEYS.auto_calc_wt]
         fields['gro-in'] = base_name + suffix
         fields['mdp-in'] = job_name + suffix
+        fields['pathsep'] = os.path.join('A', '').replace('A', '')
+        if opts[KEYS._chain_all] and (opts[KEYS.subcommand] == 'equil' or
+            opts[KEYS.subcommand] == 'rand'):
+
+            fields['extra-instructions'] = """
+# genscript {this-cmd}
+cd {script-dir}
+mv {job-name}.par {workdir-name}{pathsep}{job-name}.par
+mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm
+cd {calling-dir}
+python {path-to-here} {next-cmd} {special-flag} --submit {params-option}
+cd {workdir}
+"""
+            fields['this-cmd'] = opts[KEYS.subcommand]
+            if opts[KEYS.subcommand] == 'equil':
+                fields['next-cmd'] = 'rand'
+            if opts[KEYS.subcommand] == 'rand':
+                fields['next-cmd'] = 'array'
+            fields['script-dir'] = dir_
+            fields['path-to-here'] = __file__
+            fields['special-flag'] = KEYS._chain_all
+            fields['calling-dir'] = opts[KEYS._calling_dir]
+            fields['params-option'] = ""
+            if opts[KEYS._params]:
+                fields['params-option'] = "--par " + opts[KEYS._params]
+
         if randseed:
             fields['gro-in'] = base_name
             try:
@@ -542,8 +622,11 @@ def generate(opts, submit=False, randseed=False):
             #    directory doesn't actually have to exist to run without submit
             os.system("mv " + fields['mdp-in'] + ".mdp " +
                 os.path.join(dir_name, fields['mdp-in']) + ".mdp")
-            os.system("sbatch " + file_name)
-            print("Sbatch'd Job " + job_name + suffix)
+            if not opts[KEYS._dryrun]:
+                os.system("sbatch " + file_name)
+                print("Sbatch'd Job " + job_name + suffix)
+            else:
+                print("DRYRUN: Would sbatch job " + job_name + suffix)
 
     os.chdir(cur_dir)
 
@@ -595,14 +678,81 @@ def parameters(opts, dir_='.', name=None, fields=None):
 
     os.chdir(cur_dir)
 
+def gen_exit(_):
+    sys.exit(0)
+
+def gen_all(opts):
+    opts[KEYS._chain_all] = True
+
+    opts2 = dict(opts)  # backup
+    gen_equil(opts)
+
+    if opts[KEYS._dryrun]:
+        opts = dict(opts2)  # restore backup
+        gen_rand(opts)
+
+        opts = dict(opts2)  # restore backup
+        gen_array(opts)
+
+def gen_equil(opts):
+    opts[KEYS.subcommand] = 'equil'
+    opts[KEYS.mdr_count] = 1
+    opts[KEYS.sim_fixed_weights] = False
+    opts[KEYS.sim_weights] = False
+    opts[KEYS.sim_fixed_lambda] = False
+    opts[KEYS.sim_time] = opts[KEYS.auto_time_equil]
+    if opts[KEYS._job_name]:
+        opts[KEYS.job_name] = opts[KEYS._job_name] + '-equil'
+    generate(opts)
+
+def gen_rand(opts):
+    if opts[KEYS._chain_all]:
+        # attempt to parse output of the equil step
+        pass
+
+    opts[KEYS.subcommand] = 'rand'
+    opts[KEYS.mdr_count] = 1
+    opts[KEYS.sim_fixed_weights] = False
+    opts[KEYS.sim_weights] = False
+    opts[KEYS.sim_fixed_lambda] = True
+    opts[KEYS.sim_time] = opts[KEYS.auto_time_rand]
+    if opts[KEYS._job_name]:
+        opts[KEYS.job_name] = opts[KEYS._job_name] + '-rand'
+    generate(opts)
+
+def gen_array(opts):
+    if opts[KEYS._chain_all]:
+        # attempt to parse output of the rand step
+        pass
+
+    opts[KEYS.subcommand] = 'array'
+    opts[KEYS.sim_fixed_weights] = True
+    opts[KEYS.sim_weights] = True
+    opts[KEYS.sim_fixed_lambda] = False
+    opts[KEYS.sim_time] = opts[KEYS.auto_time_array]
+    if opts[KEYS._job_name]:
+        opts[KEYS.job_name] = opts[KEYS._job_name]
+    generate(opts)
+
+def gen_opt(opts):
+    if opts[KEYS.run_mdp]:
+        parameters(opts)
+    if opts[KEYS.run_array]:
+        generate(opts)
+
 def main(argv=None):
     if not argv:
         argv = sys.argv[1:]
 
+    cur_dir = os.getcwd()
+    name_ = os.path.basename(__file__).replace('.py', '')
+    print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) + '\n')
+
     opts = option_defaults()
 
-    parser = OptionParser(description=("Generates Rivanna SLURM scripts for" +
-        " running Gromacs simulations"))
+    parser = OptionParser()
+    parser.set_description("Generates Rivanna SLURM scripts for" +
+        " running Gromacs simulations")
     parser.add_option("-v", "--verbose", help="Increase output frequency" +
         " and detail. Stacks three times.", action="count")
     parser.add_option("--par", help="Optional configuration file to specify" +
@@ -616,12 +766,23 @@ def main(argv=None):
     parser.add_option("-n", help="""Job name for output""", metavar="sim")
     parser.add_option("-b", help="""Base name for job input""", metavar="sim")
     parser.add_option("--submit", action='store_true')
+    parser.add_option("--dryrun", action='store_true')
+
+    parser.set_usage(name_ + '.py' + " subcommand [options]\n"
+        "\tThe following subcommands may be used:\n" +
+        "\t  {0:<12s} - run an entire array production\n".format('all') +
+        "\t  {0:<12s} - run the Wang-Landau equilibriation\n".format('equil') +
+        "\t  {0:<12s} - run a position randomizing simulation\n".format('rand') +
+        "\t  {0:<12s} - run a batch of simulations\n".format('array') +
+        "\t  {0:<12s} - output a formatted mdp file\n".format('mdp') +
+        "\t  {0:<12s} - perform tasks based on a param file\n".format('opt') +
+        "\t  {0:<12s} - print usage and exit".format('exit'))
 
     if len(argv) < 1:
         parser.print_help()
         sys.exit(0)
 
-    (options, _) = parser.parse_args(argv)
+    (options, args) = parser.parse_args(argv)
 
     # handle options, reading from file if requested
     if options.par:
@@ -638,6 +799,16 @@ def main(argv=None):
         verbose = opts[KEYS.verbosity]
     opts[KEYS.verbosity] = verbose
 
+    if args:
+        subcommand = args[0]
+        if subcommand not in SUBS:
+            subcommand = 'exit'
+    else:
+        subcommand = opts[KEYS.subcommand]
+
+    if subcommand == 'exit':
+        parser.print_help()
+
     if options.n:
         opts[KEYS.job_name] = options.n
     if options.b:
@@ -646,6 +817,7 @@ def main(argv=None):
         opts[KEYS.setup_mdp] = options.mdp
     if options.slurm:
         opts[KEYS.setup_simarray] = options.slurm
+    opts[KEYS.subcommand] = subcommand
 
     # output run options
     if opts[KEYS.job_name]:
@@ -656,13 +828,27 @@ def main(argv=None):
         param_out = backup_file('', param_name)
     write_options(param_out, opts)
 
-    # perform requested file output and job submissions
-    if opts[KEYS.setup_mdp]:
-        parameters(opts)
-    if opts[KEYS.setup_simarray]:
-        generate(opts, options.submit, randseed=opts[KEYS.mdr_genseed])
+    opts[KEYS._calling_dir] = cur_dir
+    opts[KEYS._params] = options.par
+    opts[KEYS._chain_all] = False
+    if args and len(args) > 1:
+        flag = args[1]
+        if flag == KEYS._chain_all:
+            opts[KEYS._chain_all] = True
 
+    opts[KEYS._job_name] = opts[KEYS.job_name]  # backup the original name
+    opts[KEYS._submit] = options.submit or options.dryrun
+    opts[KEYS._dryrun] = options.dryrun
+
+    # perform requested file output and job submissions
+    SUBS[subcommand](opts)
+
+SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
+    'rand': gen_rand, 'array': gen_array, 'mdp': parameters,
+    'opt': gen_opt})
+KEYS.update()
 if __name__ == '__main__':
+    # initialize the subcommand list
     main(sys.argv[1:])
 
 
