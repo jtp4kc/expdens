@@ -30,6 +30,7 @@ class Keys:
     job_name = 'job-name'
     _job_name = '_job-name'  # private
     _params = '_params'  # private
+    _params_out = '_params-out'  # private
     _calling_dir = '_calling-dir'  # private
     work_dir = 'sim-dir'
     script_dir = 'scripts-dir'
@@ -590,7 +591,7 @@ def generate(opts):
             fields['extra-instructions'] = """
 # genscript {this-cmd}
 cd {script-dir}
-mv {job-name}.par {workdir-name}{pathsep}{job-name}.par
+mv {param-out} {workdir-name}{pathsep}{job-name}.par
 mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm"""
             if opts[KEYS.subcommand] == 'array':
                 fields['extra-instructions'] += """
@@ -611,6 +612,7 @@ cd {workdir}
             fields['path-to-here'] = __file__
             fields['special-flag'] = KEYS._chain_all
             fields['calling-dir'] = opts[KEYS._calling_dir]
+            fields['param-out'] = opts[KEYS._params_out]
             fields['params-option'] = ""
             if opts[KEYS._params]:
                 fields['params-option'] = "--par " + opts[KEYS._params]
@@ -953,6 +955,7 @@ def main(argv=None):
 
     opts[KEYS._calling_dir] = cur_dir
     opts[KEYS._params] = options.par
+    opts[KEYS._params_out] = param_name
     opts[KEYS._chain_all] = False
     if args and len(args) > 1:
         flag = args[1]
