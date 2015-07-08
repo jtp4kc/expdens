@@ -229,23 +229,35 @@ def option_defaults():
 
     # To help avoid spelling errors, the keys are kept in a container object,
     #    and each use of that key points back to the string listed there.
+    ################################################
+    # General
     options[KEYS.base_name] = None
     options[KEYS.job_name] = None
     options[KEYS.work_dir] = '.'
     options[KEYS.script_dir] = '.'
     options[KEYS.ligand] = 'TMP'
+    ################################################
+    # Process Control
     options[KEYS.verbosity] = 1  # Change output frequency and detail
     options[KEYS.subcommand] = 'exit'
+    options[KEYS.run_mdp] = False
+    options[KEYS.run_array] = False
+    ################################################
+    # Sim Array
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
     options[KEYS.sim_weight_values] = []
     options[KEYS.sim_incrementor] = 1
     options[KEYS.sim_fixed_lambda] = False
+    ################################################
+    # MDP
     options[KEYS.mdr_count] = 1
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
     options[KEYS.mdr_genseed] = False
+    ################################################
+    # Automation
     options[KEYS.auto_time_equil] = 0.2  # ns
     options[KEYS.auto_time_rand] = 0.2  # ns
     options[KEYS.auto_time_array] = 0.2  # ns
@@ -572,13 +584,20 @@ def generate(opts):
         fields['mdp-in'] = job_name + suffix
         fields['pathsep'] = os.path.join('A', '').replace('A', '')
         if opts[KEYS._chain_all] and (opts[KEYS.subcommand] == 'equil' or
-            opts[KEYS.subcommand] == 'rand'):
+            opts[KEYS.subcommand] == 'rand' or
+            opts[KEYS.subcommand] == 'array'):
 
             fields['extra-instructions'] = """
 # genscript {this-cmd}
 cd {script-dir}
 mv {job-name}.par {workdir-name}{pathsep}{job-name}.par
-mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm
+mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm"""
+            if opts[KEYS.subcommand] == 'array':
+                fields['extra-instructions'] += """
+cd {workdir}
+"""
+            else:
+                fields['extra-instructions'] += """
 cd {calling-dir}
 python {path-to-here} {next-cmd} {special-flag} --submit {params-option}
 cd {workdir}
@@ -661,15 +680,15 @@ def parameters(opts, dir_='.', name=None, fields=None):
     if not 'lmc-seed' in fields:
         fields['lmc-seed'] = 10200
 
-    fields['fep'] = [0.0] * 18
+    fields['fep'] = [0.0] * 16
     fields['coul'] = [0.0, 0.0, 0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        1.0, 1.0, 1.0, 1.0, 1.0]
     fields['vdw'] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
-        0.6, 0.7, 0.8, 0.9, 1.0, 1.0, 1.0]
+        0.6, 0.7, 0.8, 0.9, 1.0]
     fields['init-state-index'] = len(fields['fep']) - 1
-    fields['weights'] = [0.00000, 0.00000, 0.00000, 1.28125, 2.05469, 3.20508,
-        3.49414, 3.71484, 3.91797, 4.12695, 4.28906, 4.42773, 4.57812, 4.71289,
-        4.81055, 4.88281, 4.74609, 4.78125]
+    fields['weights'] = [0.0, -0.04688, -0.08789, 1.57031, 2.43164, 3.62305,
+        3.87891, 4.06836, 4.26562, 4.4043, 4.51367, 4.60156, 4.62695, 4.6582,
+        4.77344, 4.93164]
     if opts[KEYS.sim_weight_values]:
         fields['weights'] = opts[KEYS.sim_weight_values]
     fields['incrementor'] = opts[KEYS.sim_incrementor]
@@ -719,10 +738,9 @@ def gen_rand(opts):
             if not os.path.exists(file_name):
                 raise Exception('Simulation file not found ' + file_name)
             os.system('tail -300 {0} &>temp.log'.format(file_name))
-            file_ = open('temp.log')
             line_count = -1
             weights = []
-            for line in file_:
+            for line in open('temp.log'):
                 if 'Step' in line and 'Time' in line and 'Lambda' in line:
                     weights = []
                     line_count = 8
@@ -736,10 +754,11 @@ def gen_rand(opts):
                         weight = float(splt[5])
                         weights.append(weight)
             opts[KEYS.sim_weight_values] = weights
-
             os.remove('temp.log')
+
             os.chdir(work_dir)
-            write_options('rand.save', {'weights': weights}, None, None)
+            write_options('rand.save', {'weights': weights},
+                None, None)
 
             os.chdir(cur_dir)
         except Exception as ex:
@@ -763,12 +782,65 @@ def gen_array(opts):
         # attempt to parse output of the rand step
         try:
             cur_dir = os.getcwd()
-            os.chdir(expandpath(opts[KEYS.work_dir]))
+            work_dir = expandpath(opts[KEYS.work_dir])
+            os.chdir(work_dir)
             file_name = 'rand.save'
             if not os.path.exists(file_name):
                 raise Exception('Save file not found ' + file_name)
             save_data = parse_options(file_name, dict())
             opts[KEYS.sim_weight_values] = save_data['weights']
+
+            os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
+            file_name = '{0}-rand.log'.format(opts[KEYS.job_name])
+            if not os.path.exists(file_name):
+                raise Exception('Simulation file not found ' + file_name)
+            os.system('tail -300 {0} &>temp.log'.format(file_name))
+            line_count = -1
+            num_of_steps = 0
+            for line in open('temp.log'):
+                if 'Step' in line and 'Time' in line and 'Lambda' in line:
+                    line_count = 1
+                if line_count == 0:
+                    splt = line.split()
+                    num_of_steps = int(splt[0])
+                if line_count >= 0:
+                    line_count -= 1
+            num_frames = math.floor(num_of_steps / 500.0)  # hardcoded 500
+            # 500 is taken from nstxout-compressed variable in mdp
+            os.remove('temp.log')
+
+            base_name = opts[KEYS.base_name]
+            if not base_name:
+                base_name = opts[KEYS.job_name]
+            xtc_name = '{0}-rand.xtc'.format(opts[KEYS.job_name])
+            tpr_name = '{0}-rand.tpr'.format(opts[KEYS.job_name])
+            if not os.path.exists(xtc_name):
+                raise Exception('Simulation files not found ' + xtc_name +
+                    ' and/or ' + tpr_name)
+            cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
+                ' -b {frame} -e {frame} &>../trjconv{index}.log')
+            segments = (opts[KEYS.mdr_count] - 1)
+            if segments == 0:
+                spacing = 1  # will only be multiplied by 0
+            else:
+                spacing = num_frames / segments
+
+            if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
+                os.environ['GMXBIN'] not in os.environ['PATH']):
+                print('Adding GMXBIN to PATH...')
+                os.environ['PATH'] = os.environ['PATH'] + ':' + os.environ['GMXBIN']
+
+            for i in range(opts[KEYS.mdr_count]):
+                suffix = '_{0:0>2}'.format(i)
+                frame_num = math.floor(i * spacing)  # evenly spaced frames
+                gro_name = '../' + base_name + suffix + '-in.gro'
+                fmt = cmnd.format(xtc=xtc_name, tpr=tpr_name, gro=gro_name,
+                    frame=frame_num, index=suffix)
+                os.system(fmt)
+                if not os.path.exists(gro_name):
+                    raise Exception('Extraction of starting frames' +
+                        ' unsuccessful - Err: ' + gro_name)
+
             os.chdir(cur_dir)
         except Exception as ex:
             print(ex)
