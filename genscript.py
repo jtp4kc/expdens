@@ -743,9 +743,9 @@ def gen_rand(opts):
             line_count = -1
             weights = []
             for line in open('temp.log'):
-                if 'Step' in line and 'Time' in line and 'Lambda' in line:
+                if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                     weights = []
-                    line_count = 8
+                    line_count = 1
                 if line_count > 0:
                     line_count -= 1
                 elif line_count == 0:
