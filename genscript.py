@@ -38,17 +38,21 @@ class Keys:
     SECTIONS['General'] = [base_name, job_name, work_dir, script_dir, ligand]
     COMMENTS[base_name] = ('Name to prefix all files')
     ################################################
-    # MDP
+    # Sim Array
+    partition = 'partition-name'
     sim_time = 'sim-time-ns'
     sim_weights = 'sim-initial-weights'
     sim_fixed_weights = 'sim-fixed-weights'
     sim_weight_values = 'sim-value-of-weights'
     sim_incrementor = 'sim-weight-incrementor'
+    sim_init_lambda = 'sim-init-lambda'
     sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
-    SECTIONS['Simulation'] = [sim_time, sim_weights, sim_fixed_weights,
-        sim_weight_values, sim_incrementor, sim_fixed_lambda]
+    SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
+        sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
+        sim_fixed_lambda]
+    COMMENTS[partition] = ('Known queues: economy, serial, parallel')
     ################################################
-    # Sim Array
+    # MDP
     mdr_count = 'mdr-number-of-simulations'
     mdr_threads = 'mdr-number-of-threads'
     mdr_queue_time = 'mdr-queue-time'
@@ -245,11 +249,13 @@ def option_defaults():
     options[KEYS.run_array] = False
     ################################################
     # Sim Array
+    options[KEYS.partition] = 'serial'
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
     options[KEYS.sim_weight_values] = []
     options[KEYS.sim_incrementor] = 1
+    options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
     ################################################
     # MDP
@@ -269,7 +275,7 @@ def option_defaults():
 def _backup_name(path, filename, counter):
     """ Default method of assigning a backup name
     """
-    filename = '~' + filename + '.' + str(counter) + '~'
+    filename = '#' + filename + '.' + str(counter) + '#'
     return os.path.join(path, filename)
 
 def backup_file(directory, filename):
@@ -337,7 +343,7 @@ def place_simarray_vars(fields):
 
     text_ = """#!/bin/sh
 #SBATCH --job-name={job-name}{suffix}
-#SBATCH --partition=serial
+#SBATCH --partition={partition}
 #SBATCH --nodes=1
 #SBATCH --ntasks={ntasks}
 #SBATCH --time={queue-time}
@@ -578,6 +584,7 @@ def generate(opts):
         fields['job-name'] = job_name
         fields['suffix'] = suffix
         fields['path'] = path
+        fields['partition'] = opts[KEYS.partition]
         fields['ntasks'] = opts[KEYS.mdr_threads]
         fields['queue-time'] = opts[KEYS.mdr_queue_time]
         fields['calc-walltime'] = opts[KEYS.auto_calc_wt]
@@ -591,7 +598,7 @@ def generate(opts):
             fields['extra-instructions'] = """
 # genscript {this-cmd}
 cd {script-dir}
-mv {param-out} {workdir-name}{pathsep}{job-name}.par
+{is-array}mv {param-out} {workdir-name}{pathsep}{job-name}.par
 mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm"""
             if opts[KEYS.subcommand] == 'array':
                 fields['extra-instructions'] += """
@@ -604,10 +611,13 @@ python {path-to-here} {next-cmd} {special-flag} --submit {params-option}
 cd {workdir}
 """
             fields['this-cmd'] = opts[KEYS.subcommand]
+            fields['is-array'] = ''
             if opts[KEYS.subcommand] == 'equil':
                 fields['next-cmd'] = 'rand'
             if opts[KEYS.subcommand] == 'rand':
                 fields['next-cmd'] = 'array'
+            if opts[KEYS.subcommand] == 'array':
+                fields['is-array'] = '# '
             fields['script-dir'] = dir_
             fields['path-to-here'] = __file__
             fields['special-flag'] = KEYS._chain_all
@@ -687,7 +697,11 @@ def parameters(opts, dir_='.', name=None, fields=None):
         1.0, 1.0, 1.0, 1.0, 1.0]
     fields['vdw'] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
         0.6, 0.7, 0.8, 0.9, 1.0]
-    fields['init-state-index'] = len(fields['fep']) - 1
+    if opts[KEYS.sim_init_lambda] >= 0:
+        fields['init-state-index'] = opts[KEYS.sim_init_lambda]
+    else:
+        fields['init-state-index'] = len(fields['fep']) + opts[
+            KEYS.sim_init_lambda]
     fields['weights'] = [0.0, -0.04688, -0.08789, 1.57031, 2.43164, 3.62305,
         3.87891, 4.06836, 4.26562, 4.4043, 4.51367, 4.60156, 4.62695, 4.6582,
         4.77344, 4.93164]
@@ -819,7 +833,7 @@ def gen_array(opts):
             if not os.path.exists(xtc_name):
                 raise Exception('Simulation files not found ' + xtc_name +
                     ' and/or ' + tpr_name)
-            cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
+            cmnd = ('echo "System" | trjconv_d -f {xtc} -s {tpr} -o {gro}' +
                 ' -b {frame} -e {frame} &>../trjconv{index}.log')
             segments = (opts[KEYS.mdr_count] - 1)
             if segments == 0:
