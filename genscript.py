@@ -47,12 +47,14 @@ class Keys:
     sim_incrementor = 'sim-weight-incrementor'
     sim_init_lambda = 'sim-init-lambda'
     sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
+    sim_nstout = 'sim-nstout'
+    sim_nst_mc = 'sim-nst-mc'
     SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
         sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
-        sim_fixed_lambda]
+        sim_fixed_lambda, sim_nstout, sim_nst_mc]
     COMMENTS[partition] = ('Known queues: economy, serial, parallel')
     ################################################
-    # MDP
+    # MDP Array
     mdr_count = 'mdr-number-of-simulations'
     mdr_threads = 'mdr-number-of-threads'
     mdr_queue_time = 'mdr-queue-time'
@@ -257,8 +259,10 @@ def option_defaults():
     options[KEYS.sim_incrementor] = 1
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
+    options[KEYS.sim_nstout] = 500
+    options[KEYS.sim_nst_mc] = 50
     ################################################
-    # MDP
+    # MDP Array
     options[KEYS.mdr_count] = 1
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
@@ -458,11 +462,11 @@ nstxout                  = 0
 nstvout                  = 0
 nstfout                  = 0
 ; Output frequency for energies to log file and energy file
-nstlog                   = 500  ; changing this allows you to see the frequency the weights are computed.
+nstlog                   = {nstout:0.0f}  ; changing this allows you to see the frequency the weights are computed.
 nstcalcenergy            = 1
-nstenergy                = 500
+nstenergy                = {nstout:0.0f}
 ; Output frequency and precision for .xtc file
-nstxout-compressed       = 500  ; change this to control how frequently the structures are printed out.
+nstxout-compressed       = {nstout:0.0f}  ; change this to control how frequently the structures are printed out.
 compressed-x-precision   = 1000
 
 ; OPTIONS FOR ELECTROSTATICS AND VDW = 
@@ -537,11 +541,11 @@ vdw-lambdas               = {vdw-lambdas}
 {ils}init-lambda-state         = {init-state-index}
 symmetrized-transition-matrix = yes
 nst-transition-matrix     = 100000
-nstdhdl                   = 500
+nstdhdl                   = {nstout:0.0f}
 dhdl-print-energy         = total
 
 ; expanded ensemble
-nstexpanded              = 50
+nstexpanded              = {nst-mc:0.0f}
 lmc-stats                = wang-landau
 lmc-move                 = metropolis
 lmc-weights-equil        = {weights-equil}
@@ -708,6 +712,9 @@ def parameters(opts, dir_='.', name=None, fields=None):
     if opts[KEYS.sim_weight_values]:
         fields['weights'] = opts[KEYS.sim_weight_values]
     fields['incrementor'] = opts[KEYS.sim_incrementor]
+
+    fields['nstout'] = opts[KEYS.sim_nstout]
+    fields['nst-mc'] = opts[KEYS.sim_nst_mc]
 
     file_name = name + '.mdp'
     file_ = open(file_name, 'w')
