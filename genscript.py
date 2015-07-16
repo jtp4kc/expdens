@@ -44,6 +44,13 @@ class Keys:
     sim_weights = 'sim-initial-weights'
     sim_fixed_weights = 'sim-fixed-weights'
     sim_weight_values = 'sim-value-of-weights'
+    sim_fep_values = 'sim-values-of-fep'
+    sim_vdw_values = 'sim-values-of-vdw'
+    sim_coul_values = 'sim-values-of-coul'
+    sim_genxcoupled = 'sim-generate-x-coupled-states'
+    sim_genxuncupld = 'sim-generate-x-uncoupled-states'
+    sim_wgtxcoupled = 'sim-weight-x-coupled-states'
+    sim_wgtxuncupld = 'sim-weight-x-uncoupled-states'
     sim_incrementor = 'sim-weight-incrementor'
     sim_init_lambda = 'sim-init-lambda'
     sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
@@ -53,6 +60,14 @@ class Keys:
         sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
         sim_fixed_lambda, sim_nstout, sim_nst_mc]
     COMMENTS[partition] = ('Known queues: economy, serial, parallel')
+    COMMENTS[sim_genxcoupled] = ('Number of states to generate by adding' +
+        " entries (0.0's) at the beginning of the state index list")
+    COMMENTS[sim_genxuncupld] = ('Number of states to generate by adding' +
+        " entries (1.0's) at the end of the state index list")
+    COMMENTS[sim_wgtxcoupled] = ('Emulate these number of states by adding' +
+        " ln(x) to all but the beginning state")
+    COMMENTS[sim_wgtxuncupld] = ('Emulate these number of states by adding' +
+        " ln(x) to just the end state")
     ################################################
     # MDP Array
     mdr_count = 'mdr-number-of-simulations'
@@ -255,7 +270,18 @@ def option_defaults():
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
-    options[KEYS.sim_weight_values] = []
+    options[KEYS.sim_weight_values] = [0.0, -0.04688, -0.08789, 1.57031,
+        2.43164, 3.62305, 3.87891, 4.06836, 4.26562, 4.4043, 4.51367, 4.60156,
+        4.62695, 4.6582, 4.77344, 4.93164]
+    options[KEYS.sim_fep_values] = [0.0] * 14
+    options[KEYS.sim_vdw_values] = [0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
+        0.6, 0.7, 0.8, 0.9, 1.0]
+    options[KEYS.sim_coul_values] = [0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        1.0, 1.0, 1.0, 1.0, 1.0]
+    options[KEYS.sim_genxcoupled] = 0
+    options[KEYS.sim_genxuncupld] = 0
+    options[KEYS.sim_wgtxcoupled] = 0
+    options[KEYS.sim_wgtxuncupld] = 0
     options[KEYS.sim_incrementor] = 1
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
@@ -375,7 +401,13 @@ echo "Job Started at `date`"
 
 #NVT PRODUCTION
 grompp_d -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
-mdrun_d ${{THREADINFO}} -deffnm {job-name}
+if [ -f {job-name}.tpr ];
+then
+    echo "MD Simulation launching..."
+    mdrun_d ${{THREADINFO}} -deffnm {job-name}
+else
+    echo "Error generating {job-name}.tpr"
+fi
 {extra-instructions}
 echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
 # print end time
@@ -406,6 +438,7 @@ def place_simarray_mdp_vars(fields):
         if not len(fields['fep']) == len(fields['weights']):
             print('Number of weights not equal to number of states, please' +
                 ' address')
+            return False
         fields['ilw'] = ''
     else:
         fields['ilw'] = '; '
@@ -631,6 +664,7 @@ cd {workdir}
             if opts[KEYS._params]:
                 fields['params-option'] = "--par " + opts[KEYS._params]
 
+        cont = False
         if randseed:
             fields['gro-in'] = base_name
             try:
@@ -639,14 +673,17 @@ cd {workdir}
                 seed = random.randint(0, 65536)
                 fields['gen-seed'] = seed + i
                 fields['lmc-seed'] = seed + i
-                parameters(opts, name=fields['mdp-in'], fields=fields)
+                cont = parameters(opts, name=fields['mdp-in'], fields=fields)
             except IOError as ioex:
                 print(ioex)
         else:
             try:
-                parameters(opts, name=job_name + suffix, fields=fields)
+                cont = parameters(opts, name=job_name + suffix, fields=fields)
             except IOError as ioex:
                 print(ioex)
+
+        if not cont:
+            return
 
         file_name = job_name + suffix + '.slurm'
         file_ = open(file_name, 'w')
@@ -696,21 +733,37 @@ def parameters(opts, dir_='.', name=None, fields=None):
     if not 'lmc-seed' in fields:
         fields['lmc-seed'] = 10200
 
-    fields['fep'] = [0.0] * 16
-    fields['coul'] = [0.0, 0.0, 0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        1.0, 1.0, 1.0, 1.0, 1.0]
-    fields['vdw'] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
-        0.6, 0.7, 0.8, 0.9, 1.0]
+    fep = opts[KEYS.sim_fep_values]
+    coul = opts[KEYS.sim_coul_values]
+    vdw = opts[KEYS.sim_vdw_values]
+    weights = opts[KEYS.sim_weight_values]
+    if opts[KEYS.sim_wgtxcoupled] > 0:
+        for i in range(1, len(fields['weights'])):
+            weights[i] = weights[i] + math.log(opts[KEYS.sim_wgtxcoupled])
+    if opts[KEYS.sim_wgtxuncupld] > 0:
+        if len(weights) > 0:
+            weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
+        pass
+    if opts[KEYS.sim_genxcoupled] > 0:
+        fep = [0.0] * int(opts[KEYS.sim_genxcoupled]) + fep
+        vdw = [0.0] * int(opts[KEYS.sim_genxcoupled]) + vdw
+        coul = [0.0] * int(opts[KEYS.sim_genxcoupled]) + coul
+        weights = [weights[0]] * int(opts[KEYS.sim_genxcoupled]) + weights
+    if opts[KEYS.sim_genxuncupld] > 0:
+        fep = fep + [0.0] * int(opts[KEYS.sim_genxuncupld])
+        vdw = vdw + [1.0] * int(opts[KEYS.sim_genxuncupld])
+        coul = coul + [1.0] * int(opts[KEYS.sim_genxuncupld])
+        weights = weights + [weights[-1]] * int(opts[KEYS.sim_genxuncupld])
+
+    fields['fep'] = fep
+    fields['coul'] = coul
+    fields['vdw'] = vdw
     if opts[KEYS.sim_init_lambda] >= 0:
         fields['init-state-index'] = opts[KEYS.sim_init_lambda]
     else:
         fields['init-state-index'] = len(fields['fep']) + opts[
             KEYS.sim_init_lambda]
-    fields['weights'] = [0.0, -0.04688, -0.08789, 1.57031, 2.43164, 3.62305,
-        3.87891, 4.06836, 4.26562, 4.4043, 4.51367, 4.60156, 4.62695, 4.6582,
-        4.77344, 4.93164]
-    if opts[KEYS.sim_weight_values]:
-        fields['weights'] = opts[KEYS.sim_weight_values]
+    fields['weights'] = weights
     fields['incrementor'] = opts[KEYS.sim_incrementor]
 
     fields['nstout'] = opts[KEYS.sim_nstout]
@@ -718,10 +771,13 @@ def parameters(opts, dir_='.', name=None, fields=None):
 
     file_name = name + '.mdp'
     file_ = open(file_name, 'w')
-    file_.write(place_simarray_mdp_vars(fields))
+    value = place_simarray_mdp_vars(fields)
+    if value:
+        file_.write(value)
     file_.close()
 
     os.chdir(cur_dir)
+    return value
 
 def gen_exit(_):
     sys.exit(0)
