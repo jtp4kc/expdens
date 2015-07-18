@@ -7,7 +7,6 @@ import sys, os
 from optparse import OptionParser
 import json
 import datetime
-import subprocess
 import math
 
 verbose = 0
@@ -54,11 +53,13 @@ class Keys:
     sim_incrementor = 'sim-weight-incrementor'
     sim_init_lambda = 'sim-init-lambda'
     sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
+    sim_use_gibbs = 'sim-use-gibbs-sampling'
+    sim_gibbs_delta = 'sim-gibbs-max-step'
     sim_nstout = 'sim-nstout'
     sim_nst_mc = 'sim-nst-mc'
     SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
         sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
-        sim_fixed_lambda, sim_nstout, sim_nst_mc]
+        sim_fixed_lambda, sim_use_gibbs, sim_nstout, sim_nst_mc]
     COMMENTS[partition] = ('Known queues: economy, serial, parallel')
     COMMENTS[sim_genxcoupled] = ('Number of states to generate by adding' +
         " entries (0.0's) at the beginning of the state index list")
@@ -270,14 +271,14 @@ def option_defaults():
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
-    options[KEYS.sim_weight_values] = [0.0, -0.04688, -0.08789, 1.57031,
-        2.43164, 3.62305, 3.87891, 4.06836, 4.26562, 4.4043, 4.51367, 4.60156,
-        4.62695, 4.6582, 4.77344, 4.93164]
+    options[KEYS.sim_weight_values] = [0.0, 1.57031, 2.43164, 3.62305, 3.87891,
+        4.06836, 4.26562, 4.4043, 4.51367, 4.60156, 4.62695, 4.6582, 4.77344,
+        4.93164]
     options[KEYS.sim_fep_values] = [0.0] * 14
     options[KEYS.sim_vdw_values] = [0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
         0.6, 0.7, 0.8, 0.9, 1.0]
-    options[KEYS.sim_coul_values] = [0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        1.0, 1.0, 1.0, 1.0, 1.0]
+    options[KEYS.sim_coul_values] = [0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,
+        1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     options[KEYS.sim_genxcoupled] = 0
     options[KEYS.sim_genxuncupld] = 0
     options[KEYS.sim_wgtxcoupled] = 0
@@ -285,6 +286,8 @@ def option_defaults():
     options[KEYS.sim_incrementor] = 1
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
+    options[KEYS.sim_use_gibbs] = False
+    options[KEYS.sim_gibbs_delta] = 1
     options[KEYS.sim_nstout] = 500
     options[KEYS.sim_nst_mc] = 50
     ################################################
@@ -580,11 +583,12 @@ dhdl-print-energy         = total
 ; expanded ensemble
 nstexpanded              = {nst-mc:0.0f}
 lmc-stats                = wang-landau
-lmc-move                 = metropolis
+lmc-move                 = {metropolis}
 lmc-weights-equil        = {weights-equil}
 {wed}weight-equil-wl-delta    = 0.001
 lmc-seed                 = {lmc-seed}
 {ilw}init-lambda-weights      = {wl-weights}
+lmc-gibbsdelta           = {gibbs-delta}
 
 ; Seed for Monte Carlo in lambda space
 wl-scale                 = 0.5
@@ -765,6 +769,11 @@ def parameters(opts, dir_='.', name=None, fields=None):
             KEYS.sim_init_lambda]
     fields['weights'] = weights
     fields['incrementor'] = opts[KEYS.sim_incrementor]
+
+    fields['metropolis'] = 'metropolis'
+    if opts[KEYS.sim_use_gibbs]:
+        fields['metropolis'] = 'metropolized-gibbs'
+    fields['gibbs-delta'] = opts[KEYS.sim_gibbs_delta]
 
     fields['nstout'] = opts[KEYS.sim_nstout]
     fields['nst-mc'] = opts[KEYS.sim_nst_mc]
