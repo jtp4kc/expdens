@@ -739,7 +739,7 @@ def parameters(opts, dir_='.', name=None, fields=None):
     weights = opts[KEYS.sim_weight_values]
     if opts[KEYS.sim_wgtxcoupled] > 0:
         for i in range(1, len(fields['weights'])):
-            weights[i] = weights[i] + math.log(opts[KEYS.sim_wgtxcoupled])
+            weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
     if opts[KEYS.sim_wgtxuncupld] > 0:
         if len(weights) > 0:
             weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
