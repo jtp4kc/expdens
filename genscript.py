@@ -59,7 +59,9 @@ class Keys:
     sim_nst_mc = 'sim-nst-mc'
     SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
         sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
-        sim_fixed_lambda, sim_use_gibbs, sim_nstout, sim_nst_mc]
+        sim_fixed_lambda, sim_use_gibbs, sim_gibbs_delta, sim_nstout,
+        sim_nst_mc, sim_genxcoupled, sim_genxuncupld, sim_wgtxcoupled,
+        sim_wgtxuncupld]
     COMMENTS[partition] = ('Known queues: economy, serial, parallel')
     COMMENTS[sim_genxcoupled] = ('Number of states to generate by adding' +
         " entries (0.0's) at the beginning of the state index list")
@@ -182,6 +184,7 @@ def write_options(optionsFile, options, sections_dict=KEYS.SECTIONS,
     if others:
         file_out.write('\n')
         file_out.write(com + '##{0:#>35}###\n'.format(''))
+        file_out.write(com + '##{0:>35}###\n'.format(''))
         for key in others:
             if key in comments_dict:
                 comment = comments_dict[key].splitlines()
@@ -741,16 +744,21 @@ def parameters(opts, dir_='.', name=None, fields=None):
     coul = opts[KEYS.sim_coul_values]
     vdw = opts[KEYS.sim_vdw_values]
     weights = opts[KEYS.sim_weight_values]
-    print('Debug, genstates')
+    if verbose > 2:
+        print('Debug, genstates')
 
-    print('Value coup {0}'.format(opts[KEYS.sim_wgtxcoupled]))
+    if verbose > 2:
+        print('Value coup {0}'.format(opts[KEYS.sim_wgtxcoupled]))
     if opts[KEYS.sim_wgtxcoupled] > 0:
-        print('making more states, coupled')
+        if verbose > 2:
+            print('making more states, coupled')
         for i in range(1, len(weights)):
             weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
-    print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
+    if verbose > 2:
+        print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
     if opts[KEYS.sim_wgtxuncupld] > 0:
-        print('making more states, uncoupled')
+        if verbose > 2:
+            print('making more states, uncoupled')
         if len(weights) > 0:
             weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
     if opts[KEYS.sim_genxcoupled] > 0:
@@ -763,7 +771,8 @@ def parameters(opts, dir_='.', name=None, fields=None):
         vdw = vdw + [1.0] * int(opts[KEYS.sim_genxuncupld])
         coul = coul + [1.0] * int(opts[KEYS.sim_genxuncupld])
         weights = weights + [weights[-1]] * int(opts[KEYS.sim_genxuncupld])
-    print(weights)
+    if verbose > 2:
+        print(weights)
 
     fields['fep'] = fep
     fields['coul'] = coul
