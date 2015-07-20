@@ -742,12 +742,11 @@ def parameters(opts, dir_='.', name=None, fields=None):
     vdw = opts[KEYS.sim_vdw_values]
     weights = opts[KEYS.sim_weight_values]
     if opts[KEYS.sim_wgtxcoupled] > 0:
-        for i in range(1, len(fields['weights'])):
+        for i in range(1, len(weights)):
             weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
     if opts[KEYS.sim_wgtxuncupld] > 0:
         if len(weights) > 0:
             weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
-        pass
     if opts[KEYS.sim_genxcoupled] > 0:
         fep = [0.0] * int(opts[KEYS.sim_genxcoupled]) + fep
         vdw = [0.0] * int(opts[KEYS.sim_genxcoupled]) + vdw
