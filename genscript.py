@@ -287,7 +287,7 @@ def option_defaults():
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
     options[KEYS.sim_use_gibbs] = False
-    options[KEYS.sim_gibbs_delta] = 1
+    options[KEYS.sim_gibbs_delta] = -1
     options[KEYS.sim_nstout] = 500
     options[KEYS.sim_nst_mc] = 50
     ################################################
@@ -773,7 +773,7 @@ def parameters(opts, dir_='.', name=None, fields=None):
     fields['metropolis'] = 'metropolis'
     if opts[KEYS.sim_use_gibbs]:
         fields['metropolis'] = 'metropolized-gibbs'
-    fields['gibbs-delta'] = opts[KEYS.sim_gibbs_delta]
+    fields['gibbs-delta'] = int(opts[KEYS.sim_gibbs_delta])
 
     fields['nstout'] = opts[KEYS.sim_nstout]
     fields['nst-mc'] = opts[KEYS.sim_nst_mc]
