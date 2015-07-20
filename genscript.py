@@ -741,10 +741,16 @@ def parameters(opts, dir_='.', name=None, fields=None):
     coul = opts[KEYS.sim_coul_values]
     vdw = opts[KEYS.sim_vdw_values]
     weights = opts[KEYS.sim_weight_values]
+    print('Debug, genstates')
+
+    print('Value coup {0}'.format(opts[KEYS.sim_wgtxcoupled]))
     if opts[KEYS.sim_wgtxcoupled] > 0:
+        print('making more states, coupled')
         for i in range(1, len(weights)):
             weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
+    print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
     if opts[KEYS.sim_wgtxuncupld] > 0:
+        print('making more states, uncoupled')
         if len(weights) > 0:
             weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
     if opts[KEYS.sim_genxcoupled] > 0:
@@ -757,6 +763,7 @@ def parameters(opts, dir_='.', name=None, fields=None):
         vdw = vdw + [1.0] * int(opts[KEYS.sim_genxuncupld])
         coul = coul + [1.0] * int(opts[KEYS.sim_genxuncupld])
         weights = weights + [weights[-1]] * int(opts[KEYS.sim_genxuncupld])
+    print(weights)
 
     fields['fep'] = fep
     fields['coul'] = coul
