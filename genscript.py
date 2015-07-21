@@ -57,11 +57,12 @@ class Keys:
     sim_gibbs_delta = 'sim-gibbs-max-step'
     sim_nstout = 'sim-nstout'
     sim_nst_mc = 'sim-nst-mc'
+    sim_pressure = 'sim-pressure-coupling'
     SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
         sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
         sim_fixed_lambda, sim_use_gibbs, sim_gibbs_delta, sim_nstout,
         sim_nst_mc, sim_genxcoupled, sim_genxuncupld, sim_wgtxcoupled,
-        sim_wgtxuncupld]
+        sim_wgtxuncupld, sim_pressure]
     COMMENTS[partition] = ('Known queues: economy, serial, parallel')
     COMMENTS[sim_genxcoupled] = ('Number of states to generate by adding' +
         " entries (0.0's) at the beginning of the state index list")
@@ -293,6 +294,7 @@ def option_defaults():
     options[KEYS.sim_gibbs_delta] = -1
     options[KEYS.sim_nstout] = 500
     options[KEYS.sim_nst_mc] = 50
+    options[KEYS.sim_pressure] = True
     ################################################
     # MDP Array
     options[KEYS.mdr_count] = 1
@@ -471,6 +473,14 @@ def place_simarray_mdp_vars(fields):
         fields['ilv'] = '; '
         fields['ils'] = ''
 
+    if fields['use-pressure']:
+        fields['npt'] = ''
+        fields['pcoupl'] = 'MTTK'
+    else:
+        fields['npt'] = '; '
+        fields['pcoupl'] = 'no'
+
+
     text_ = """; RUN CONTROL PARAMETERS = 
 integrator               = md-vv
 ; start time and timestep in ps = 
@@ -558,12 +568,12 @@ tau_t                    = 0.5; 1.0 ~TP
 ref_t                    = 300.0 
 
 ; Pressure coupling      = 
-Pcoupl                   = MTTK
-Pcoupltype               = isotropic
-; Time constant (ps), compressibility (1/bar) and reference P (bar) = 
-tau_p                    = 20.0 ; 5.0 ; ps ~TP
-compressibility          = 4.5e-5 ; 1/bar
-ref_p                    = 1.0 ; bar
+Pcoupl                   = {pcoupl}
+{npt}Pcoupltype               = isotropic
+{npt}; Time constant (ps), compressibility (1/bar) and reference P (bar) = 
+{npt}tau_p                    = 20.0 ; 5.0 ; ps ~TP
+{npt}compressibility          = 4.5e-5 ; 1/bar
+{npt}ref_p                    = 1.0 ; bar
 
 ; OPTIONS FOR EXPANDED ENSEMBLE SIMULATIONS
 ; Free energy control stuff  
@@ -792,6 +802,8 @@ def parameters(opts, dir_='.', name=None, fields=None):
 
     fields['nstout'] = opts[KEYS.sim_nstout]
     fields['nst-mc'] = opts[KEYS.sim_nst_mc]
+
+    fields['use-pressure'] = opts[KEYS.sim_pressure]
 
     file_name = name + '.mdp'
     file_ = open(file_name, 'w')
