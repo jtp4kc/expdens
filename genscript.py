@@ -354,6 +354,14 @@ def place_simarray_vars(fields):
     fields['infolder'] = os.path.join('..', '')
     fields['jobstatus'] = os.path.join('..', 'jobstatus.txt')
 
+    fields['move-cmds'] = ''
+    if 'move-par' in fields and fields['move-par']:
+        fields['move-cmds'] += "mv {infolder}{param-out} {param-out} \n"
+    if 'move-slurm' in fields and fields['move-slurm']:
+        fields['move-cmds'] += "mv {infolder}{slurm-out} {slurm-out} \n"
+    if 'move-gro' in fields and fields['move-gro']:
+        fields['move-cmds'] += "mv {infolder}{gro-in}-in.gro {gro-in}-in.gro \n"
+
     extins = 'extra-instructions'
     if not extins in fields:
         fields[extins] = ''
@@ -416,6 +424,7 @@ then
 else
     echo "Error generating {job-name}.tpr"
 fi
+{move-cmds}
 {extra-instructions}
 echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
 # print end time
@@ -633,6 +642,8 @@ def generate(opts):
         suffix = '_{0:0>2}'.format(i)
         if opts[KEYS.mdr_count] < 2:
             suffix = ''
+        file_name = job_name + suffix + '.slurm'
+
         fields = dict()
         fields['base'] = base_name
         fields['job-name'] = job_name
@@ -645,15 +656,15 @@ def generate(opts):
         fields['gro-in'] = base_name + suffix
         fields['mdp-in'] = job_name + suffix
         fields['pathsep'] = os.path.join('A', '').replace('A', '')
+        fields['move-par'] = True
+        fields['move-slurm'] = True
+        fields['slurm-out'] = file_name
         if opts[KEYS._chain_all] and (opts[KEYS.subcommand] == 'equil' or
             opts[KEYS.subcommand] == 'rand' or
             opts[KEYS.subcommand] == 'array'):
 
             fields['extra-instructions'] = """
-# genscript {this-cmd}
-cd {script-dir}
-{is-array}mv {param-out} {workdir-name}{pathsep}{job-name}.par
-mv {job-name}.slurm {workdir-name}{pathsep}{job-name}.slurm"""
+# genscript {this-cmd}"""
             if opts[KEYS.subcommand] == 'array':
                 fields['extra-instructions'] += """
 cd {workdir}
@@ -665,15 +676,12 @@ python {path-to-here} {next-cmd} {special-flag} --submit {params-option}
 cd {workdir}
 """
             fields['this-cmd'] = opts[KEYS.subcommand]
-            fields['is-array'] = ''
             if opts[KEYS.subcommand] == 'equil':
                 fields['next-cmd'] = 'rand'
             if opts[KEYS.subcommand] == 'rand':
                 fields['next-cmd'] = 'array'
-            if opts[KEYS.subcommand] == 'array':
-                fields['is-array'] = '# '
             fields['script-dir'] = dir_
-            fields['path-to-here'] = __file__
+            fields['path-to-here'] = os.path.realpath(__file__)
             fields['special-flag'] = KEYS._chain_all
             fields['calling-dir'] = opts[KEYS._calling_dir]
             fields['param-out'] = opts[KEYS._params_out]
@@ -702,7 +710,6 @@ cd {workdir}
         if not cont:
             return
 
-        file_name = job_name + suffix + '.slurm'
         file_ = open(file_name, 'w')
         file_.write(place_simarray_vars(fields))
         file_.close()
