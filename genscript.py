@@ -1059,9 +1059,9 @@ def main(argv=None):
     if options.b:
         opts[KEYS.base_name] = options.b
     if options.mdp:
-        opts[KEYS.setup_mdp] = options.mdp
+        opts[KEYS.run_mdp] = options.mdp
     if options.slurm:
-        opts[KEYS.setup_simarray] = options.slurm
+        opts[KEYS.run_simarray] = options.slurm
     opts[KEYS.subcommand] = subcommand
 
     # output run options
