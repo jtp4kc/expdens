@@ -987,7 +987,7 @@ def gen_opt(opts):
         generate(opts)
 
 def main(argv=None):
-    if not argv:
+    if argv == None:
         argv = sys.argv[1:]
 
     cur_dir = os.getcwd()
