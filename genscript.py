@@ -8,237 +8,120 @@ from optparse import OptionParser
 import json
 import datetime
 import math
+import backup
+from parameters import Parameters
+from parameters import Keys
 
 verbose = 0
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
     return "One of: " + ", ".join(SUBS.keys())
 
-class Keys:
+class MyKeys(Keys):
     """Container class for the options' key strings
     @see binding_ensemble_parameters()
     """
-    # Useful options file information (TODO: yet to be implemented)
-    COMMENTS = dict()  # key from above, maps to useful comment
-    SECTIONS = dict()  # title of section from above, maps to list of keys
 
-    # Values that can be specified by the user in the options file
-    ################################################
-    # General
-    base_name = 'base-name'
-    job_name = 'job-name'
-    _job_name = '_job-name'  # private
-    _params = '_params'  # private
-    _params_out = '_params-out'  # private
-    _calling_dir = '_calling-dir'  # private
-    work_dir = 'sim-dir'
-    script_dir = 'scripts-dir'
-    ligand = 'ligand-res-name'
-    SECTIONS['General'] = [base_name, job_name, work_dir, script_dir, ligand]
-    COMMENTS[base_name] = ('Name to prefix all files')
-    ################################################
-    # Sim Array
-    partition = 'partition-name'
-    sim_time = 'sim-time-ns'
-    sim_weights = 'sim-initial-weights'
-    sim_fixed_weights = 'sim-fixed-weights'
-    sim_weight_values = 'sim-value-of-weights'
-    sim_fep_values = 'sim-values-of-fep'
-    sim_vdw_values = 'sim-values-of-vdw'
-    sim_coul_values = 'sim-values-of-coul'
-    sim_genxcoupled = 'sim-generate-x-coupled-states'
-    sim_genxuncupld = 'sim-generate-x-uncoupled-states'
-    sim_wgtxcoupled = 'sim-weight-x-coupled-states'
-    sim_wgtxuncupld = 'sim-weight-x-uncoupled-states'
-    sim_incrementor = 'sim-weight-incrementor'
-    sim_init_lambda = 'sim-init-lambda'
-    sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
-    sim_use_gibbs = 'sim-use-gibbs-sampling'
-    sim_gibbs_delta = 'sim-gibbs-max-step'
-    sim_nstout = 'sim-nstout'
-    sim_nst_mc = 'sim-nst-mc'
-    sim_pressure = 'sim-pressure-coupling'
-    SECTIONS['Simulation'] = [partition, sim_time, sim_weights,
-        sim_fixed_weights, sim_weight_values, sim_incrementor, sim_init_lambda,
-        sim_fixed_lambda, sim_use_gibbs, sim_gibbs_delta, sim_nstout,
-        sim_nst_mc, sim_genxcoupled, sim_genxuncupld, sim_wgtxcoupled,
-        sim_wgtxuncupld, sim_pressure]
-    COMMENTS[partition] = ('Known queues: economy, serial, parallel')
-    COMMENTS[sim_genxcoupled] = ('Number of states to generate by adding' +
-        " entries (0.0's) at the beginning of the state index list")
-    COMMENTS[sim_genxuncupld] = ('Number of states to generate by adding' +
-        " entries (1.0's) at the end of the state index list")
-    COMMENTS[sim_wgtxcoupled] = ('Emulate these number of states by adding' +
-        " ln(x) to all but the beginning state")
-    COMMENTS[sim_wgtxuncupld] = ('Emulate these number of states by adding' +
-        " ln(x) to just the end state")
-    ################################################
-    # MDP Array
-    mdr_count = 'mdr-number-of-simulations'
-    mdr_threads = 'mdr-number-of-threads'
-    mdr_queue_time = 'mdr-queue-time'
-    mdr_genseed = 'mdr-generate-seeds'
-    SECTIONS['mdrun Array'] = [mdr_count, mdr_threads, mdr_queue_time,
-        mdr_genseed]
-    COMMENTS[mdr_threads] = ('Max 20 threads (for now)')
-    ################################################
-    # Automation
-    auto_time_equil = 'auto-equil-time-ns'
-    auto_time_rand = 'auto-rand-time-ns'
-    auto_time_array = 'auto-array-time-ns'
-    auto_calc_wt = 'auto-calculate-walltime'
-    SECTIONS['Automation'] = [auto_time_equil, auto_time_rand, auto_time_array,
-        auto_calc_wt]
-    ################################################
-    # Process Control
-    verbosity = 'verbose-level'
-    subcommand = 'subcommand'
-    run_mdp = 'create-mdp'
-    run_array = 'setup-array-of-jobs'
-    _submit = 'submit-jobs'  # private
-    _dryrun = 'dry-run'  # private
-    _chain_all = 'GEN_ALL'  # private
-    SECTIONS['Process Control'] = [verbosity, subcommand, run_mdp, run_array]
-    COMMENTS[subcommand] = _subcomment()
+    def __init__(self):
+        Keys.__init__(self)
+        # Mostly values that can be specified by the user in the options file
+        ################################################
+        # General
+        self.base_name = 'base-name'
+        self.job_name = 'job-name'
+        self._job_name = '_job-name'  # private
+        self._params = '_params'  # private
+        self._params_out = '_params-out'  # private
+        self._calling_dir = '_calling-dir'  # private
+        self.work_dir = 'sim-dir'
+        self.script_dir = 'scripts-dir'
+        self.ligand = 'ligand-res-name'
 
-    def update(self):
-        self.COMMENTS[self.subcommand] = _subcomment()
+        section = "General"
+        self.add_key(self.base_name, section, 'Name to prefix all files')
+        self.add_keys(section, self.job_name, self.work_dir, self.script_dir,
+                      self.ligand)
+        ################################################
+        # Sim Options
+        self.partition = 'partition-name'
+        self.sim_time = 'sim-time-ns'
+        self.sim_weights = 'sim-initial-weights'
+        self.sim_fixed_weights = 'sim-fixed-weights'
+        self.sim_weight_values = 'sim-value-of-weights'
+        self.sim_fep_values = 'sim-values-of-fep'
+        self.sim_vdw_values = 'sim-values-of-vdw'
+        self.sim_coul_values = 'sim-values-of-coul'
+        self.sim_genxcoupled = 'sim-generate-x-coupled-states'
+        self.sim_genxuncupld = 'sim-generate-x-uncoupled-states'
+        self.sim_wgtxcoupled = 'sim-weight-x-coupled-states'
+        self.sim_wgtxuncupld = 'sim-weight-x-uncoupled-states'
+        self.sim_incrementor = 'sim-weight-incrementor'
+        self.sim_init_lambda = 'sim-init-lambda'
+        self.sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
+        self.sim_use_gibbs = 'sim-use-gibbs-sampling'
+        self.sim_gibbs_delta = 'sim-gibbs-max-step'
+        self.sim_nstout = 'sim-nstout'
+        self.sim_nst_mc = 'sim-nst-mc'
+        self.sim_pressure = 'sim-pressure-coupling'
 
-    # Internally calculated values
-KEYS = Keys()
+        section = "Simulation"
+        self.add_key(self.partition, section, ('Known queues: economy,' +
+                                               ' serial, parallel'))
+        self.add_key(self.sim_genxcoupled, section, ("Number of states to" +
+            " generate by adding entries (0.0's) at the beginning of the" +
+            " state index list"))
+        self.add_key(self.sim_genxuncupld, section, ("Number of states to" +
+            " generate by adding entries (1.0's) at the end of the state" +
+            " index list"))
+        self.add_key(self.sim_wgtxcoupled, section, ("Emulate these number of" +
+            " states by adding ln(x) to all but the beginning state"))
+        self.add_key(self.sim_wgtxuncupld, section, ("Emulate these number of" +
+            " states by adding ln(x) to just the end state"))
+        self.add_keys(section, self.sim_time,
+            self.sim_weights, self.sim_fixed_weights,
+            self.sim_weight_values, self.sim_fep_values,
+            self.sim_vdw_values, self.sim_coul_values,
+            self.sim_incrementor, self.sim_init_lambda,
+            self.sim_fixed_lambda, self.sim_use_gibbs,
+            self.sim_gibbs_delta, self.sim_nstout,
+            self.sim_nst_mc, self.sim_pressure)
+        ################################################
+        # MDP Array
+        self.mdr_count = 'mdr-number-of-simulations'
+        self.mdr_threads = 'mdr-number-of-threads'
+        self.mdr_queue_time = 'mdr-queue-time'
+        self.mdr_genseed = 'mdr-generate-seeds'
 
-def _com_char():
-    """ Comment character for param files
-    """
-    return '#'
+        section = "mdrun Array"
+        self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
+        self.add_keys(self.mdr_count, self.mdr_queue_time, self.mdr_genseed)
+        ################################################
+        # Automation
+        self.auto_time_equil = 'auto-equil-time-ns'
+        self.auto_time_rand = 'auto-rand-time-ns'
+        self.auto_time_array = 'auto-array-time-ns'
+        self.auto_calc_wt = 'auto-calculate-walltime'
 
-def _sep_char():
-    """ Separation character for param files
-    """
-    return '='
+        section = "Automation"
+        self.add_keys(section, self.auto_time_equil, self.auto_time_rand,
+                      self.auto_time_array, self.auto_calc_wt)
+        ################################################
+        # Process Control
+        self.verbosity = 'verbose-level'
+        self.subcommand = 'subcommand'
+        self.run_mdp = 'create-mdp'
+        self.run_array = 'setup-array-of-jobs'
+        self._submit = 'submit-jobs'  # private
+        self._dryrun = 'dry-run'  # private
+        self._chain_all = 'GEN_ALL'  # private
 
-def _file_ext():
-    """File extension for param files
-    """
-    return '.par'
+        section = "Process Control"
+        self.add_key(self.subcommand, updater=_subcomment)
+        self.add_keys(section, self.verbosity, self.run_mdp, self.run_array)
 
-def _arrange_options(options, sections_dict=KEYS.SECTIONS):
-    """Arranges the options that are present so that they print in section-order
-    """
-    arrange = dict()
-    misc = []
-    for key in sorted(options):
-        placed = False
-        if sections_dict:
-            for section in sections_dict:
-                if key in sections_dict[section]:
-                    if not section in arrange:
-                        arrange[section] = []
-                    arrange[section].append(key)
-                    placed = True
-                    break
-        if not placed:
-            misc.append(key)
-    return arrange, misc
+KEYS = MyKeys()
 
-def write_options(optionsFile, options, sections_dict=KEYS.SECTIONS,
-    comments_dict=KEYS.COMMENTS):
-    """Write all the options used during analysis, so that it is clear for the
-    user to double check.
-    
-    The inspiration for this procedure is taken from the GROMACS simulation
-    package, and the file type .mdp
-    
-    @organization: Shirts Group
-    @author: Tyler P
-    @param optionsFile: (String) location of the configuration file (.bep)
-    @param options: (dict) configuration parameters    
-    """
-
-    enc = json.JSONEncoder()
-    sep = _sep_char()
-    com = _com_char()
-    format_ = '{0:<40}'
-
-    arrangement, others = _arrange_options(options, sections_dict)
-    if not comments_dict:
-        comments_dict = dict()
-
-    file_out = open(optionsFile, 'w')
-    file_out.write(com + "Generated by " + os.path.basename(__file__) + " @ " +
-        str(datetime.datetime.now()) + '\n')
-    file_out.write(com + "    Variables beginning with an underscore (_) are" +
-        " calculated by the program, and are\n")
-    file_out.write(com + "    only included here for reference. Their values" +
-        " will be overwritten on file read.\n")
-    for section in arrangement:
-        if arrangement[section]:
-            file_out.write(com + '##{0:#>35}###\n'.format(''))
-            file_out.write(com + '##{0:^35}###\n'.format(section))
-            for key in arrangement[section]:
-                if key in comments_dict:
-                    comment = comments_dict[key].splitlines()
-                    for line in comment:
-                        file_out.write(com + ' ' + line + '\n')
-                file_out.write(format_.format(key) + sep + ' ' +
-                    enc.encode(options[key]) + '\n')
-    if others:
-        file_out.write('\n')
-        file_out.write(com + '##{0:#>35}###\n'.format(''))
-        file_out.write(com + '##{0:>35}###\n'.format(''))
-        for key in others:
-            if key in comments_dict:
-                comment = comments_dict[key].splitlines()
-                for line in comment:
-                    file_out.write(com + ' ' + line + '\n')
-            file_out.write(format_.format(key) + sep + ' ' +
-                enc.encode(options[key]) + '\n')
-    file_out.close()
-
-def parse_options(optionsFile, options=None):
-    """Read contents of a configuration file, which provides input for the 
-    algorithms of binding ensemble analysis. 
-    
-    The inspiration for this procedure is taken from the GROMACS simulation
-    package, and the file type .mdp
-    
-    @organization: Shirts Group
-    @author: Tyler P
-    @param optionsFile: (String) location of the configuration file (.bep)
-    @param options: (dict) optional dictionary to store the options. If None, 
-        a dictionary of default values will be generated. Otherwise, the return
-        value is this dict with the options from file added.
-    @see: bindingEnsembleParameters()
-    
-    @return: dict, with the options from file added
-    """
-
-    sep = _sep_char()
-    com = _com_char()
-    dec = json.JSONDecoder()
-
-    if not options:
-        options = option_defaults()
-
-    file_ = open(optionsFile, 'r')
-    if file_:
-        for line in file_:
-            # comments denoted with hashmark
-            if com in line:
-                line = line.split(com)[0]
-            # name of parameter is followed by a colon
-            line = line.strip()
-            if sep in line:
-                colon = line.split(sep)
-                key = colon[0]
-                value = line.replace(key + sep, '')
-                key = key.strip()
-                value = value.strip()
-                options[key] = dec.decode(value)
-    else:
-        options = None
-
-    return options
+param = Parameters(KEYS)
 
 def option_defaults():
     """Define the default parameters for param file.
@@ -310,38 +193,8 @@ def option_defaults():
 
     return options
 
-def _backup_name(path, filename, counter):
-    """ Default method of assigning a backup name
-    """
-    filename = '#' + filename + '.' + str(counter) + '#'
-    return os.path.join(path, filename)
-
-def backup_file(directory, filename):
-    """ Backup an Analysis File
-    
-    The inspiration for this procedure is taken from the GROMACS simulation
-    package, which backs up its .mdp files (and others) in similar manner
-
-    @organization: Shirts Group
-    @author: Tyler P
-    
-    @return: the result of os.path.join(directory, filename), where this file,
-        if it already existed, has been moved to a backup file
-    """
-    fileOut = os.path.join(directory, filename)
-    if os.path.exists(fileOut):
-        count = 1
-        backupName = _backup_name(directory, filename, count)
-        while os.path.exists(backupName):
-            count += 1
-            backupName = _backup_name(directory, filename, count)
-        if verbose >= 0:
-            print('Backing up ' + filename + ' to ' + backupName)
-        os.rename(fileOut, backupName)
-    return fileOut
-
-def expandpath(path):
-    return os.path.realpath(os.path.expanduser(os.path.expandvars(path)))
+# provide custom default library
+param.option_defaults = option_defaults
 
 #################################################################################
 #################################################################################
@@ -633,11 +486,11 @@ def generate(opts):
         base_name = job_name
 
     cur_dir = os.getcwd()
-    dir_ = expandpath(opts[KEYS.script_dir])
+    dir_ = backup.expandpath(opts[KEYS.script_dir])
     if not os.path.exists(dir_):
         os.mkdir(dir_)
     os.chdir(dir_)
-    path = expandpath(opts[KEYS.work_dir])
+    path = backup.expandpath(opts[KEYS.work_dir])
     for i in range(opts[KEYS.mdr_count]):
         suffix = '_{0:0>2}'.format(i)
         if opts[KEYS.mdr_count] < 2:
@@ -854,7 +707,7 @@ def gen_rand(opts):
         # attempt to parse output of the equil step
         try:
             cur_dir = os.getcwd()
-            work_dir = expandpath(opts[KEYS.work_dir])
+            work_dir = backup.expandpath(opts[KEYS.work_dir])
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-equil'))
             file_name = '{0}-equil.log'.format(opts[KEYS.job_name])
             if not os.path.exists(file_name):
@@ -879,7 +732,7 @@ def gen_rand(opts):
             os.remove('temp.log')
 
             os.chdir(work_dir)
-            write_options('rand.save', {'weights': weights},
+            param.write_options('rand.save', {'weights': weights},
                 None, None)
 
             os.chdir(cur_dir)
@@ -904,12 +757,12 @@ def gen_array(opts):
         # attempt to parse output of the rand step
         try:
             cur_dir = os.getcwd()
-            work_dir = expandpath(opts[KEYS.work_dir])
+            work_dir = backup.expandpath(opts[KEYS.work_dir])
             os.chdir(work_dir)
             file_name = 'rand.save'
             if not os.path.exists(file_name):
                 raise Exception('Save file not found ' + file_name)
-            save_data = parse_options(file_name, dict())
+            save_data = param.parse_options(file_name, dict())
             opts[KEYS.sim_weight_values] = save_data['weights']
 
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
@@ -1032,7 +885,7 @@ def main(argv=None):
     # handle options, reading from file if requested
     if options.par:
         print('Reading parameters from ' + options.par)
-        opts = parse_options(options.par, opts)
+        opts = param.parse_options(options.par, opts)
         if not opts:
             print('Error reading from parameters file.')
             sys.exit(1)
@@ -1066,12 +919,12 @@ def main(argv=None):
 
     # output run options
     if opts[KEYS.job_name]:
-        param_name = opts[KEYS.job_name] + _file_ext()
-        param_out = backup_file('./', param_name)
+        param_name = opts[KEYS.job_name] + param.file_ext
+        param_out = backup.backup_file('./', param_name, verbose=verbose)
     else:
-        param_name = _file_ext()
-        param_out = backup_file('', param_name)
-    write_options(param_out, opts)
+        param_name = param.file_ext
+        param_out = backup.backup_file('', param_name, verbose=verbose)
+    param.write_options(param_out, opts)
 
     opts[KEYS._calling_dir] = cur_dir
     opts[KEYS._params] = options.par
