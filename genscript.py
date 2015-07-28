@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 Created on Jun 19, 2015
 
@@ -839,7 +840,7 @@ def gen_opt(opts):
         generate(opts)
 
 def main(argv=None):
-    if not argv:
+    if argv == None:
         argv = sys.argv[1:]
 
     cur_dir = os.getcwd()
@@ -912,9 +913,9 @@ def main(argv=None):
     if options.b:
         opts[KEYS.base_name] = options.b
     if options.mdp:
-        opts[KEYS.setup_mdp] = options.mdp
+        opts[KEYS.run_mdp] = options.mdp
     if options.slurm:
-        opts[KEYS.setup_simarray] = options.slurm
+        opts[KEYS.run_array] = options.slurm
     opts[KEYS.subcommand] = subcommand
 
     # output run options
