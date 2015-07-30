@@ -560,7 +560,7 @@ constraints              = hbonds ; constrain bonds to hydrogen
 ; Type of constraint algorithm = 
 constraint-algorithm     = shake
 ; Highest order in the expansion of the constraint coupling matrix = 
-shake-tol                = {shake_tol} ~TP
+shake-tol                = {shake_tol} ; ~TP
 """.format(**fields)
         return self.bonds
 
@@ -585,7 +585,7 @@ gen_seed                 = {gen-seed}
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K) = 
 tcoupl                   = nose-hoover
-tau_t                    = {tau_t} ~TP
+tau_t                    = {tau_t} ; ~TP
 ref_t                    = {temp:0.1f}
 """
         if self.volume_control:
