@@ -10,7 +10,6 @@ import math
 import backup
 from parameters import Parameters
 from parameters import Keys
-import code
 
 verbose = 0
 SUBS = dict()  # available subcommands, as a dictionary
@@ -317,10 +316,13 @@ class SlurmGen:
         fields = dict()
         fields.update(self.fields_general)
         fields.update(self.fields_setup)
+        fields['dm'] = "_s"
+        if self.double_precision:
+            fields['dm'] = "_d"
         self.setup = """MODULEPATH=$HOME/modules:$MODULEPATH
 module load jtp4kc
 module load python
-module load gromacs/5.0.2-sse
+module load gromacs{dm}
 
 export THREADINFO="-nt {ntasks} "
 export GMX_SUPPRESS_DUMP=1 #prevent step file output
@@ -348,11 +350,11 @@ echo "Job Started at `date`"
         if self.double_precision:
             fields['dm'] = "_d"
         self.main = """#PRODUCTION
-grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
+gmx grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
 if [ -f {job-name}.tpr ];
 then
     echo "MD Simulation launching..."
-    mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
+    gmx mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
 else
     echo "Error generating {job-name}.tpr"
 fi
