@@ -754,11 +754,11 @@ def generate(opts):
         base_name = job_name
 
     cur_dir = os.getcwd()
-    dir_ = backup.expandpath(opts[KEYS.script_dir])
+    dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
     if not os.path.exists(dir_):
         os.mkdir(dir_)
     os.chdir(dir_)
-    path = backup.expandpath(opts[KEYS.work_dir])
+    path = os.path.join(backup.expandpath(opts[KEYS.work_dir]), "")
 
     tpr_files = []
     xtc_files = []
