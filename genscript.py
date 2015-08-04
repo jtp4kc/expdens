@@ -886,7 +886,6 @@ def generate(opts):
         builder.fields_general['workdir'] = workdir
         builder.fields_general['jobstatus'] = os.path.join('..',
             'jobstatus.txt')
-        builder.fields_header['partition'] = opts[KEYS.partition]
         builder.fields_header['queue-time'] = queue_time
         builder.fields_header['outputfile'] = os.path.join(path,
             job_name + suffix, job_name)
