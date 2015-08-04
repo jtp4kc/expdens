@@ -10,7 +10,6 @@ import math
 import backup
 from parameters import Parameters
 from parameters import Keys
-from matplotlib.cbook import ls_mapper
 
 verbose = 0
 SUBS = dict()  # available subcommands, as a dictionary
