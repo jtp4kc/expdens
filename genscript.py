@@ -10,6 +10,7 @@ import math
 import backup
 from parameters import Parameters
 from parameters import Keys
+from matplotlib.cbook import ls_mapper
 
 verbose = 0
 SUBS = dict()  # available subcommands, as a dictionary
@@ -42,7 +43,7 @@ class MyKeys(Keys):
                       self.ligand)
         ################################################
         # Sim Options
-        self.partition = 'partition-name'
+        self.sim_use_mpi = "sim-use-mpi-parallelization"
         self.sim_time = 'sim-time-ns'
         self.sim_temperature = "sim-temperature"
         self.sim_weights = 'sim-initial-weights'
@@ -58,7 +59,8 @@ class MyKeys(Keys):
         self.sim_incrementor = 'sim-weight-incrementor'
         self.sim_init_lambda = 'sim-init-lambda'
         self.sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
-        self.sim_use_gibbs = 'sim-use-gibbs-sampling'
+        self.sim_use_gibbs = 'sim-use-gibbs-state-sampling'
+        self.sim_use_metro = 'sim-use-metropolis-rejection'
         self.sim_gibbs_delta = 'sim-gibbs-max-step'
         self.sim_nstout = 'sim-nstout'
         self.sim_nst_mc = 'sim-nst-mc'
@@ -66,8 +68,6 @@ class MyKeys(Keys):
         self.sim_precision = 'sim-use-double-precision'
 
         section = "Simulation"
-        self.add_key(self.partition, section, ('Known queues: economy,' +
-                                               ' serial, parallel'))
         self.add_key(self.sim_genxcoupled, section, ("Number of states to" +
             " generate by adding entries (0.0's) at the beginning of the" +
             " state index list"))
@@ -78,12 +78,12 @@ class MyKeys(Keys):
             " states by adding ln(x) to all but the beginning state"))
         self.add_key(self.sim_wgtxuncupld, section, ("Emulate these number of" +
             " states by adding ln(x) to just the end state"))
-        self.add_keys(section, self.sim_time, self.sim_temperature,
-            self.sim_weights, self.sim_fixed_weights,
+        self.add_keys(section, self.sim_use_mpi, self.sim_time,
+            self.sim_temperature, self.sim_weights, self.sim_fixed_weights,
             self.sim_weight_values, self.sim_fep_values,
             self.sim_vdw_values, self.sim_coul_values,
             self.sim_incrementor, self.sim_init_lambda,
-            self.sim_fixed_lambda, self.sim_use_gibbs,
+            self.sim_fixed_lambda, self.sim_use_gibbs, self.sim_use_metro,
             self.sim_gibbs_delta, self.sim_nstout,
             self.sim_nst_mc, self.sim_pressure, self.sim_precision)
         ################################################
@@ -156,7 +156,7 @@ def option_defaults():
     options[KEYS.run_array] = False
     ################################################
     # Sim Array
-    options[KEYS.partition] = 'serial'
+    options[KEYS.sim_use_mpi] = False
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_temperature] = 300.0  # K
     options[KEYS.sim_weights] = False
@@ -177,6 +177,7 @@ def option_defaults():
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
     options[KEYS.sim_use_gibbs] = False
+    options[KEYS.sim_use_metro] = True
     options[KEYS.sim_gibbs_delta] = -1
     options[KEYS.sim_nstout] = 500
     options[KEYS.sim_nst_mc] = 50
@@ -275,6 +276,8 @@ class SlurmGen:
         self.fields_cleanup = dict()
         self.fields_checkout = dict()
         self.double_precision = False
+        self.use_mpi = False
+        self.gromacs5 = False
 
     def compile(self):
         self.script = ""
@@ -295,10 +298,16 @@ class SlurmGen:
         fields = dict()
         fields.update(self.fields_general)
         fields.update(self.fields_header)
+        fields["nnodes"] = 1
+        fields["partition"] = "serial"
+        if self.use_mpi:
+            # 20 cores physically exist on a Rivanna node
+            fields["nnodes"] = math.ceil(self.fields["ntasks"] / 20)
+            fields["partition"] = "parallel"
         self.header = """#!/bin/sh
 #SBATCH --job-name={job-name}{suffix}
 #SBATCH --partition={partition}
-#SBATCH --nodes=1
+#SBATCH --nodes={nnodes}
 #SBATCH --ntasks={ntasks}
 #SBATCH --time={queue-time}
 #SBATCH --signal=15 --comment="15 = SIGTERM"
@@ -316,20 +325,26 @@ class SlurmGen:
         fields = dict()
         fields.update(self.fields_general)
         fields.update(self.fields_setup)
-        fields['dm'] = "_s"
-        if self.double_precision:
-            fields['dm'] = "_d"
-        self.setup = """MODULEPATH=$HOME/modules:$MODULEPATH
+        self.setup = """MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
+MODULEPATH=$HOME/modules:$MODULEPATH
 module load jtp4kc
 module load python
-module load gromacs{dm}
+module load openmpi/1.8.1
+"""
+        if self.gromacs5:
+            self.setup += "module load gromacs/5.0.2-sse"
+        else:
+            self.setup += "module load gromacs-shirtsgroup/4.5.7"
+
+        self.setup += """
 
 export THREADINFO="-nt {ntasks} "
 export GMX_SUPPRESS_DUMP=1 #prevent step file output
 
 sleep 1
 diagnostics
-""".format(**fields)
+"""
+        self.setup = self.setup.format(**fields)
         return self.setup
 
     def get_checkin(self):
@@ -350,11 +365,11 @@ echo "Job Started at `date`"
         if self.double_precision:
             fields['dm'] = "_d"
         self.main = """#PRODUCTION
-gmx grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
+grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
 if [ -f {job-name}.tpr ];
 then
     echo "MD Simulation launching..."
-    gmx mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
+    mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
 else
     echo "Error generating {job-name}.tpr"
 fi
@@ -418,6 +433,7 @@ class MDPGen:
         self.fixed_state = False
         self.initial_weights = False
         self.use_gibbs = False
+        self.use_metro = True
         self.pkg_single = MDPGen.PkgPrecision()
         self.pkg_single.tau_t = 1.0
         self.pkg_single.tau_p = 5.0
@@ -655,11 +671,16 @@ lmc-stats                = wang-landau
 lmc-weights-equil        = {weights-equil}
 lmc-seed                 = {lmc-seed}
 """
-        if self.use_gibbs:
+        if self.use_gibbs and self.use_metro:
             part += "lmc-move                 = metropolized-gibbs\n"
             part += "lmc-gibbsdelta           = {gibbs-delta}\n"
-        else:
+        elif self.use_gibbs:
+            part += "lmc-move                 = gibbs\n"
+            part += "lmc-gibbsdelta           = {gibbs-delta}\n"
+        elif self.use_metro:
             part += "lmc-move                 = metropolis\n"
+        else:
+            part += "lmc-move                 = no\n"
 
         if self.initial_weights:
             part += "init-lambda-weights      = {wl-weights}\n"
@@ -859,6 +880,7 @@ def generate(opts):
 
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
+        builder.use_mpi = opts[KEYS.sim_use_mpi]
         builder.fields_general['job-name'] = job_name
         builder.fields_general['suffix'] = suffix
         builder.fields_general['ntasks'] = opts[KEYS.mdr_threads]
@@ -1033,6 +1055,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder = MDPGen()
     builder.fixed_state = opts[KEYS.sim_fixed_lambda]
     builder.initial_weights = opts[KEYS.sim_weights]
+    builder.use_metro = opts[KEYS.sim_use_metro]
     builder.use_gibbs = opts[KEYS.sim_use_gibbs]
     if opts[KEYS.sim_pressure]:
         builder.set_ensemble("NPT")
