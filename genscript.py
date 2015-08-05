@@ -156,6 +156,7 @@ def option_defaults():
     options[KEYS.run_array] = False
     ################################################
     # Sim Array
+    options[KEYS.sim_gromacs5] = False
     options[KEYS.sim_use_mpi] = False
     options[KEYS.sim_time] = 0.2  # ns
     options[KEYS.sim_temperature] = 300.0  # K
