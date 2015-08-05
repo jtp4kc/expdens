@@ -333,7 +333,7 @@ module load openmpi/1.8.1
         if self.gromacs5:
             self.setup += "module load gromacs/5.0.2-sse"
         else:
-            self.setup += "module load gromacs-shirtsgroup/4.5.7"
+            self.setup += "module load gromacs-shirtsgroup/4.6.7"
 
         self.setup += """
 
