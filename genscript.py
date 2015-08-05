@@ -65,6 +65,7 @@ class MyKeys(Keys):
         self.sim_nst_mc = 'sim-nst-mc'
         self.sim_pressure = 'sim-pressure-coupling'
         self.sim_precision = 'sim-use-double-precision'
+        self.sim_gromacs5 = 'sim-gromacs5+'
 
         section = "Simulation"
         self.add_key(self.sim_genxcoupled, section, ("Number of states to" +
@@ -442,6 +443,7 @@ class MDPGen:
         self.pkg_double.tau_p = 20.0
         self.pkg_double.shake_tol = 1e-12
         self.precision = self.pkg_double
+        self.gromacs5 = False
 
     def compile(self):
         self.script = ""
@@ -526,10 +528,18 @@ nstfout                  = 0
 nstlog                   = {nstout:0.0f}  ; changing this allows you to see the frequency the weights are computed.
 nstcalcenergy            = 1
 nstenergy                = {nstout:0.0f}
-; Output frequency and precision for .xtc file
-nstxout-compressed       = {nstout:0.0f}  ; change this to control how frequently the structures are printed out.
+; Output frequency and precision for .xtc file"""
+        if self.gromacs5:
+            self.output += """
+nstxout-compressed       = {nstout:0.0f}  ; trajectory output frequency
 compressed-x-precision   = 1000
-""".format(**fields)
+"""
+        else:
+            self.output += """
+nstxtcout                = {nstout:0.0f}  ; trajectory output frequency
+xtc-precision            = 1000
+"""
+            self.output = self.output.format(**fields)
         return self.output
 
     def get_interactions(self):
@@ -637,6 +647,9 @@ ref_p                    = 1.0 ; bar
         fields = dict()
         fields.update(self.fields_general)
         fields.update(self.fields_expdens)
+        fields['energy-out'] = "yes"
+        if self.gromacs5:
+            fields['energy-out'] = "total"
         part = """; Free energy control stuff  
 sc-alpha                  = 0.5
 couple-moltype            = {ligand}
@@ -649,7 +662,7 @@ vdw-lambdas               = {vdw-lambdas}
 symmetrized-transition-matrix = yes
 nst-transition-matrix     = 100000
 nstdhdl                   = {nstout:0.0f}
-dhdl-print-energy         = total
+dhdl-print-energy         = {energy-out}
 """
         if self.fixed_state:
             part += "free-energy               = yes\n"
@@ -880,6 +893,7 @@ def generate(opts):
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
         builder.use_mpi = opts[KEYS.sim_use_mpi]
+        builder.gromacs5 = opts[KEYS.sim_gromacs5]
         builder.fields_general['job-name'] = job_name
         builder.fields_general['suffix'] = suffix
         builder.fields_general['ntasks'] = opts[KEYS.mdr_threads]
@@ -1053,6 +1067,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder = MDPGen()
     builder.fixed_state = opts[KEYS.sim_fixed_lambda]
     builder.initial_weights = opts[KEYS.sim_weights]
+    builder.gromacs5 = opts[KEYS.sim_gromacs5]
     builder.use_metro = opts[KEYS.sim_use_metro]
     builder.use_gibbs = opts[KEYS.sim_use_gibbs]
     if opts[KEYS.sim_pressure]:
