@@ -12,6 +12,7 @@ from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
 
 verbose = 0
+cancel_list = []  # optional list to build into a cancel script
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
     return "One of: " + ", ".join(SUBS.keys())
@@ -832,7 +833,6 @@ def generate(opts):
     gro_files = []
     edr_files = []
     xvg_files = []
-    cancel_lines = []
 
     for i in range(opts[KEYS.mdr_count]):
         suffix = '_{0:0>2}'.format(i)
@@ -946,7 +946,9 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 import subprocess
-                file_ = open("cancel" + job_name + ".sh", "r+")
+                if os.path.exists("cancel.sh"):
+                    os.remove("cancel.sh")
+                file_ = open("cancel.sh", "r+")
                 # os.system("sbatch " + file_name)
                 subprocess.call(["sbatch", file_name], stdout=file_)
                 file_.seek(0)
@@ -955,19 +957,12 @@ def generate(opts):
                 num = line.split(" ")[-1]
                 file_.close()
                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
-                cancel_lines.append("# cancel job " + job_name + suffix)
-                cancel_lines.append("scancel " + num)
+                cancel_list.append("# cancel job " + job_name + suffix)
+                cancel_list.append("scancel " + num)
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
     if submit:
-        # Create cancel file
-        file_ = open("cancel" + job_name + ".sh", "w")
-        file_.write("#! /usr/bin/sh \n")
-        for line in cancel_lines:
-            file_.write(line + "\n")
-        file_.close()
-
         # Create analysis options file
         num_coup = opts[KEYS.sim_genxcoupled]
         num_uncp = opts[KEYS.sim_genxuncupld]
@@ -1385,8 +1380,24 @@ def main(argv=None):
     if isinstance(opt_list, list):
         for opts in opt_list:
             setup(options, args, opts, parser, cur_dir)
+        opts = opt_list[0]
     else:
         setup(options, args, opt_list, parser, cur_dir)
+        opts = opt_list
+
+    if cancel_list:
+        dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+        if not os.path.exists(dir_):
+            os.mkdir(dir_)
+        os.chdir(dir_)
+        # Create cancel file
+        file_ = open("cancel.sh", "w")
+        file_.write("#! /usr/bin/sh \n")
+        for line in cancel_list:
+            file_.write(line + "\n")
+        file_.close()
+        cancel_list = []
+        os.chdir(cur_dir)
 
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
