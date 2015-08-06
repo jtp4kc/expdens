@@ -63,6 +63,7 @@ class MyKeys(Keys):
         self.sim_gibbs_delta = 'sim-gibbs-max-step'
         self.sim_nstout = 'sim-nstout'
         self.sim_nst_mc = 'sim-nst-mc'
+        self.sim_temp_alg = 'sim-temperature-algorithm'
         self.sim_pressure = 'sim-pressure-coupling'
         self.sim_precision = 'sim-use-double-precision'
         self.sim_gromacs5 = 'sim-gromacs5+'
@@ -119,7 +120,7 @@ class MyKeys(Keys):
         self._chain_all = 'GEN_ALL'  # private
 
         section = "Process Control"
-        self.add_key(self.subcommand, updater=_subcomment)
+        self.add_key(self.subcommand, section=section, updater=_subcomment)
         self.add_keys(section, self.verbosity, self.run_mdp, self.run_array)
 
 KEYS = MyKeys()
@@ -182,6 +183,7 @@ def option_defaults():
     options[KEYS.sim_gibbs_delta] = -1
     options[KEYS.sim_nstout] = 500
     options[KEYS.sim_nst_mc] = 50
+    options[KEYS.sim_temp_alg] = "v-rescale"  # "nose-hoover"
     options[KEYS.sim_pressure] = True
     options[KEYS.sim_precision] = True
     ################################################
@@ -610,7 +612,7 @@ gen_seed                 = {gen-seed}
 ; Groups to couple separately = 
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K) = 
-tcoupl                   = nose-hoover
+tcoupl                   = {temp_alg}
 tau_t                    = {tau_t} ; ~TP
 ref_t                    = {temp:0.1f}
 """
