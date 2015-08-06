@@ -1019,7 +1019,10 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         os.mkdir(dir_)
     os.chdir(dir_)
 
-    fep, coul, vdw, weights = [], [], [], []
+    fep = []
+    coul = []
+    vdw = []
+    weights = []
     fep = fep.extend(opts[KEYS.sim_fep_values])
     coul = coul.extend(opts[KEYS.sim_coul_values])
     vdw = vdw.extend(opts[KEYS.sim_vdw_values])
