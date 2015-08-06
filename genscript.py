@@ -96,7 +96,7 @@ class MyKeys(Keys):
         self._expected_frames = "mdr-expected-number-of-frames"
 
         section = "mdrun Array"
-        self.add_key(self.mdr_threads, section=section, 'Max 20 threads (for now)')
+        self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
             self.mdr_genseed)
         ################################################
