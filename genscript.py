@@ -946,16 +946,15 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 import subprocess
-                if os.path.exists("cancel.sh"):
-                    os.remove("cancel.sh")
-                file_ = open("cancel.sh", "r+")
+                file_ = open("cancel.sh", "w")
                 # os.system("sbatch " + file_name)
                 subprocess.call(["sbatch", file_name], stdout=file_)
-                file_.seek(0)
-                line = file.readline()
-                print(line)
-                num = line.split(" ")[-1]
                 file_.close()
+                file_ = open("cancel.sh", "r")
+                line = file.readline()
+                file_.close()
+                num = line.split(" ")[-1]
+                print(line)
                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
                 cancel_list.append("# cancel job " + job_name + suffix)
                 cancel_list.append("scancel " + num)
