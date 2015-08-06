@@ -86,7 +86,8 @@ class MyKeys(Keys):
             self.sim_incrementor, self.sim_init_lambda,
             self.sim_fixed_lambda, self.sim_use_gibbs, self.sim_use_metro,
             self.sim_gibbs_delta, self.sim_nstout,
-            self.sim_nst_mc, self.sim_pressure, self.sim_precision)
+            self.sim_nst_mc, self.sim_temp_alg, self.sim_pressure,
+            self.sim_precision, self.sim_gromacs5)
         ################################################
         # MDP Array
         self.mdr_count = 'mdr-number-of-simulations'
@@ -640,7 +641,7 @@ gen_seed                 = {gen-seed}
 ; Groups to couple separately = 
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K) = 
-tcoupl                   = {temp_alg}
+tcoupl                   = {temp-alg}
 tau_t                    = {tau_t} ; ~TP
 ref_t                    = {temp:0.1f}
 """
@@ -1093,6 +1094,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder.fields_params['dt'] = 0.002;  # ps
     builder.fields_params['time-ns'] = opts[KEYS.sim_time]
     builder.fields_velocities['gen-seed'] = genseed
+    builder.fields_coupling['temp-alg'] = opts[KEYS.sim_temp_alg]
     builder.fields_expdens['ligand'] = opts[KEYS.ligand]
     builder.fields_expdens['fep-lambdas'] = fep_lambdas
     builder.fields_expdens['coul-lambdas'] = coul_lambdas
