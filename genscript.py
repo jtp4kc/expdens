@@ -8,8 +8,8 @@ import sys, os
 from optparse import OptionParser
 import math
 import backup
-from parameters import Parameters
-from parameters import Keys
+from param_versions.version_2_0 import Parameters
+from param_versions.version_2_0 import Keys
 
 verbose = 0
 SUBS = dict()  # available subcommands, as a dictionary
@@ -974,7 +974,7 @@ def generate(opts):
         analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
         if opts[KEYS.sim_fixed_lambda]:
             analysis.fields_output[BEPGen.KEYS.single_state] = state_index
-        analysis.write("analysis.bep")
+        analysis.write("analysis_" + opts[KEYS.job_name] + ".bep")
 
     os.chdir(cur_dir)
 
@@ -1242,58 +1242,7 @@ def gen_opt(opts):
     if opts[KEYS.run_array]:
         generate(opts)
 
-def main(argv=None):
-    if argv == None:
-        argv = sys.argv[1:]
-
-    cur_dir = os.getcwd()
-    name_ = os.path.basename(__file__).replace('.py', '')
-    print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) + '\n')
-
-    opts = option_defaults()
-
-    parser = OptionParser()
-    parser.set_description("Generates Rivanna SLURM scripts for" +
-        " running Gromacs simulations")
-    parser.add_option("-v", "--verbose", help="Increase output frequency" +
-        " and detail. Stacks three times.", action="count")
-    parser.add_option("--par", help="Optional configuration file to specify" +
-        " command line parameters and more.",
-        default=None, metavar="file.par")
-    parser.add_option("--slurm", help="""Prepare scripts to run on Rivanna""",
-        default=None, action='store_true')
-    parser.add_option("--mdp", help="Output the Molecular Dynamics Parameters" +
-        " (.mdp) configuration file",
-        default=None, action='store_true')
-    parser.add_option("-n", help="""Job name for output""", metavar="sim")
-    parser.add_option("-b", help="""Base name for job input""", metavar="sim")
-    parser.add_option("--submit", action='store_true')
-    parser.add_option("--dryrun", action='store_true')
-
-    parser.set_usage(name_ + '.py' + " subcommand [options]\n"
-        "\tThe following subcommands may be used:\n" +
-        "\t  {0:<12s} - run an entire array production\n".format('all') +
-        "\t  {0:<12s} - run the Wang-Landau equilibriation\n".format('equil') +
-        "\t  {0:<12s} - run a position randomizing simulation\n".format('rand') +
-        "\t  {0:<12s} - run a batch of simulations\n".format('array') +
-        "\t  {0:<12s} - output a formatted mdp file\n".format('mdp') +
-        "\t  {0:<12s} - perform tasks based on a param file\n".format('opt') +
-        "\t  {0:<12s} - print usage and exit".format('exit'))
-
-    if len(argv) < 1:
-        parser.print_help()
-        sys.exit(0)
-
-    (options, args) = parser.parse_args(argv)
-
-    # handle options, reading from file if requested
-    if options.par:
-        print('Reading parameters from ' + options.par)
-        opts = param.parse_options(options.par, opts)
-        if not opts:
-            print('Error reading from parameters file.')
-            sys.exit(1)
-
+def setup(options, args, opts, parser, cur_dir):
     global verbose  # ensure that we are talking about the same verbose here
     if options.verbose:
         verbose = options.verbose
@@ -1346,6 +1295,66 @@ def main(argv=None):
     # perform requested file output and job submissions
     SUBS[subcommand](opts)
 
+def main(argv=None):
+    if argv == None:
+        argv = sys.argv[1:]
+
+    cur_dir = os.getcwd()
+    name_ = os.path.basename(__file__).replace('.py', '')
+    print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) + '\n')
+
+    opts = option_defaults()
+
+    parser = OptionParser()
+    parser.set_description("Generates Rivanna SLURM scripts for" +
+        " running Gromacs simulations")
+    parser.add_option("-v", "--verbose", help="Increase output frequency" +
+        " and detail. Stacks three times.", action="count")
+    parser.add_option("--par", help="Optional configuration file to specify" +
+        " command line parameters and more.",
+        default=None, metavar="file.par")
+    parser.add_option("--slurm", help="""Prepare scripts to run on Rivanna""",
+        default=None, action='store_true')
+    parser.add_option("--mdp", help="Output the Molecular Dynamics Parameters" +
+        " (.mdp) configuration file",
+        default=None, action='store_true')
+    parser.add_option("-n", help="""Job name for output""", metavar="sim")
+    parser.add_option("-b", help="""Base name for job input""", metavar="sim")
+    parser.add_option("--submit", action='store_true')
+    parser.add_option("--dryrun", action='store_true')
+
+    parser.set_usage(name_ + '.py' + " subcommand [options]\n"
+        "\tThe following subcommands may be used:\n" +
+        "\t  {0:<12s} - run an entire array production\n".format('all') +
+        "\t  {0:<12s} - run the Wang-Landau equilibriation\n".format('equil') +
+        "\t  {0:<12s} - run a position randomizing simulation\n".format('rand') +
+        "\t  {0:<12s} - run a batch of simulations\n".format('array') +
+        "\t  {0:<12s} - output a formatted mdp file\n".format('mdp') +
+        "\t  {0:<12s} - perform tasks based on a param file\n".format('opt') +
+        "\t  {0:<12s} - print usage and exit".format('exit'))
+
+    if len(argv) < 1:
+        parser.print_help()
+        sys.exit(0)
+
+    (options, args) = parser.parse_args(argv)
+
+    # handle options, reading from file if requested
+    if options.par:
+        print('Reading parameters from ' + options.par)
+        opt_list = param.parse_options(options.par, opts)
+        if not opt_list:
+            print('Error reading from parameters file.')
+            sys.exit(1)
+    else:
+        opt_list = opts
+
+    if isinstance(opt_list, list):
+        for opts in opt_list:
+            setup(options, args, opts, parser, cur_dir)
+    else:
+        setup(options, args, opt_list, parser, cur_dir)
+
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
     'opt': gen_opt})
@@ -1353,18 +1362,6 @@ KEYS.update()
 if __name__ == '__main__':
     # initialize the subcommand list
     main(sys.argv[1:])
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
