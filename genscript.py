@@ -951,7 +951,7 @@ def generate(opts):
                 subprocess.call(["sbatch", file_name], stdout=file_)
                 file_.close()
                 file_ = open("cancel.sh", "r")
-                line = file.readline()
+                line = file_.readline()
                 file_.close()
                 num = line.split(" ")[-1]
                 print(line)
