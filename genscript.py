@@ -811,6 +811,7 @@ class BEPGen:
         BEPGen.params.write_options(file_name, self.fields_output)
 
 def generate(opts):
+    global cancel_list
     randseed = opts[KEYS.mdr_genseed]
     submit = opts[KEYS._submit]
     job_name = opts[KEYS.job_name]
@@ -1384,6 +1385,7 @@ def main(argv=None):
         setup(options, args, opt_list, parser, cur_dir)
         opts = opt_list
 
+    global cancel_list
     if cancel_list:
         dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
         if not os.path.exists(dir_):
