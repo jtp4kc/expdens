@@ -955,6 +955,7 @@ def generate(opts):
                 line = file_.readline()
                 file_.close()
                 num = line.split(" ")[-1]
+                num = num.replace("\n", "")
                 print(line)
                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
                 cancel_list.append("# cancel job " + job_name + suffix)
