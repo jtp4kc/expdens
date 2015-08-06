@@ -1335,7 +1335,7 @@ def main(argv=None):
 
     if len(argv) < 1:
         parser.print_help()
-        sys.exit(0)
+        return 0
 
     (options, args) = parser.parse_args(argv)
 
@@ -1345,7 +1345,7 @@ def main(argv=None):
         opt_list = param.parse_options(options.par, opts)
         if not opt_list:
             print('Error reading from parameters file.')
-            sys.exit(1)
+            return 1
     else:
         opt_list = opts
 
