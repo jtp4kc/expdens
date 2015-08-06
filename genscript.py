@@ -76,7 +76,7 @@ class MyKeys(Keys):
             " generate by adding entries (1.0's) at the end of the state" +
             " index list"))
         self.add_key(self.sim_wgtxcoupled, section, ("Emulate these number of" +
-            " states by adding ln(x) to all but the beginning state"))
+            " states by subtracting ln(x) from all but the beginning state"))
         self.add_key(self.sim_wgtxuncupld, section, ("Emulate these number of" +
             " states by adding ln(x) to just the end state"))
         self.add_keys(section, self.sim_use_mpi, self.sim_time,
@@ -836,7 +836,6 @@ def generate(opts):
             suffix = ''
 
         file_name = job_name + suffix + '.slurm'
-        timens = opts[KEYS.sim_time]
         workdir = os.path.join(path, job_name + suffix, "")
         callingdir = opts[KEYS._calling_dir]
         indir = os.path.join('..', '')
@@ -910,6 +909,7 @@ def generate(opts):
         builder.fields_general['workdir'] = workdir
         builder.fields_general['jobstatus'] = os.path.join('..',
             'jobstatus.txt')
+        builder.fields_header['time-ns'] = opts[KEYS.sim_time]
         builder.fields_header['queue-time'] = opts[KEYS.mdr_queue_time]
         builder.fields_header['outputfile'] = os.path.join(path,
             job_name + suffix, job_name)
