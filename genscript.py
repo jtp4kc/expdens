@@ -330,8 +330,10 @@ class SlurmGen:
         fields["partition"] = "serial"
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            fields["nnodes"] = int(math.ceil(fields["ntasks"] / 20))
-        if fields["nnodes"] > 1:
+            fields["nnodes"] = int(math.ceil(fields["ntasks"] / 20.0))
+        if fields["nnodes"] == 0:
+            fields["nnodes"] = 1
+        elif fields["nnodes"] > 1:
             fields["partition"] = "parallel"
         if self.calc_wt:
             fields["queue-time"] = self.walltime(fields["time-ns"],
