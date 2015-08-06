@@ -1393,7 +1393,7 @@ def main(argv=None):
         os.chdir(dir_)
         # Create cancel file
         file_ = open("cancel.sh", "w")
-        file_.write("#! /usr/bin/sh \n")
+        file_.write("#! /usr/bin/bash \n")
         for line in cancel_list:
             file_.write(line + "\n")
         file_.close()
