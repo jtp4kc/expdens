@@ -96,7 +96,7 @@ class MyKeys(Keys):
         self._expected_frames = "mdr-expected-number-of-frames"
 
         section = "mdrun Array"
-        self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
+        self.add_key(self.mdr_threads, section=section, 'Max 20 threads (for now)')
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
             self.mdr_genseed)
         ################################################
@@ -281,6 +281,30 @@ class SlurmGen:
         self.double_precision = False
         self.use_mpi = False
         self.gromacs5 = False
+        self.calc_wt = True
+
+    def walltime(self, ns, ntasks, nnodes):
+        rate = 7.5 / 20  # 7.5 ns/day per 20 cores for double precicion
+        if not self.double_precision:
+            rate *= 1.8  # assume 80% speedup for single precision
+        speed = rate * ntasks  # ns/day
+        est = ns / speed  # days
+        time_ = est * 1.20  # add 20% buffer
+        time_limit = 7  # seven day limit on serial queue
+        if nnodes > 1:
+            time_limit = 2  # two day limit on parallel queue
+        if time_ > time_limit:
+            time_ = time_limit
+        frac, days = math.modf(time_)
+        frac, hours = math.modf(frac * 24.0)
+        frac, mins = math.modf(frac * 60.0)
+        frac, secs = math.modf(frac * 60.0)
+
+        days = int(days)
+        hours = int(hours)
+        mins = int(mins)
+        secs = int(secs)
+        return '{0}-{1:02}:{2:02}:{3:02}'.format(days, hours, mins, secs)
 
     def compile(self):
         self.script = ""
@@ -305,8 +329,12 @@ class SlurmGen:
         fields["partition"] = "serial"
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            fields["nnodes"] = math.ceil(self.fields["ntasks"] / 20)
+            fields["nnodes"] = math.ceil(fields["ntasks"] / 20)
+        if fields["nnodes"] > 1:
             fields["partition"] = "parallel"
+        if self.calc_wt:
+            fields["queue-time"] = self.walltime(fields["time-ns"],
+                fields["ntasks"], fields["nnodes"])
         self.header = """#!/bin/sh
 #SBATCH --job-name={job-name}{suffix}
 #SBATCH --partition={partition}
@@ -838,28 +866,6 @@ def generate(opts):
         if not cont:
             return
 
-        if opts[KEYS.auto_calc_wt]:
-            rate = 7.5 / 20  # 7.5 ns/day per 20 cores
-            if not opts[KEYS.sim_precision]:
-                rate = rate * 1.7  # assume 70% increase for single precision
-            speed = rate * opts[KEYS.mdr_threads]  # ns/day
-            est = timens / speed  # days
-            time_ = est * 1.20  # add 20% buffer
-            if time_ > 7:
-                time_ = 7  # seven day limit on serial queue
-            frac, days = math.modf(time_)
-            frac, hours = math.modf(frac * 24.0)
-            frac, mins = math.modf(frac * 60.0)
-            frac, secs = math.modf(frac * 60.0)
-
-            d = int(days)
-            h = int(hours)
-            m = int(mins)
-            s = int(secs)
-            queue_time = '{0}-{1:02}:{2:02}:{3:02}'.format(d, h, m, s)
-        else:
-            queue_time = opts[KEYS.mdr_queue_time]
-
         move = ""
         if move_par:
             move += ("mv " + dir_ + opts[KEYS._params_out] + " " +
@@ -896,6 +902,7 @@ def generate(opts):
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
         builder.use_mpi = opts[KEYS.sim_use_mpi]
+        builder.calc_wt = opts[KEYS.auto_calc_wt]
         builder.gromacs5 = opts[KEYS.sim_gromacs5]
         builder.fields_general['job-name'] = job_name
         builder.fields_general['suffix'] = suffix
@@ -903,7 +910,7 @@ def generate(opts):
         builder.fields_general['workdir'] = workdir
         builder.fields_general['jobstatus'] = os.path.join('..',
             'jobstatus.txt')
-        builder.fields_header['queue-time'] = queue_time
+        builder.fields_header['queue-time'] = opts[KEYS.mdr_queue_time]
         builder.fields_header['outputfile'] = os.path.join(path,
             job_name + suffix, job_name)
         builder.fields_main['base'] = base_name
