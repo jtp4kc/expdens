@@ -832,6 +832,7 @@ def generate(opts):
     gro_files = []
     edr_files = []
     xvg_files = []
+    cancel_lines = []
 
     for i in range(opts[KEYS.mdr_count]):
         suffix = '_{0:0>2}'.format(i)
@@ -944,12 +945,30 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                os.system("sbatch " + file_name)
-                print("Sbatch'd Job " + job_name + suffix)
+                import subprocess
+                file_ = open("cancel" + job_name + ".sh", "r+")
+                # os.system("sbatch " + file_name)
+                subprocess.call(["sbatch", file_name], stdout=file_)
+                file_.seek(0)
+                line = file.readline()
+                print(line)
+                num = line.split(" ")[-1]
+                file_.close()
+                print("Sbatch'd Job " + job_name + suffix + " as job " + num)
+                cancel_lines.append("# cancel job " + job_name + suffix)
+                cancel_lines.append("scancel " + num)
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
     if submit:
+        # Create cancel file
+        file_ = open("cancel" + job_name + ".sh", "w")
+        file_.write("#! /usr/bin/sh \n")
+        for line in cancel_lines:
+            file_.write(line + "\n")
+        file_.close()
+
+        # Create analysis options file
         num_coup = opts[KEYS.sim_genxcoupled]
         num_uncp = opts[KEYS.sim_genxuncupld]
         num_states = len(opts[KEYS.sim_fep_values]) + num_coup + num_uncp
@@ -1005,10 +1024,11 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         os.mkdir(dir_)
     os.chdir(dir_)
 
-    fep = opts[KEYS.sim_fep_values]
-    coul = opts[KEYS.sim_coul_values]
-    vdw = opts[KEYS.sim_vdw_values]
-    weights = opts[KEYS.sim_weight_values]
+    fep, coul, vdw, weights = [], [], [], []
+    fep = fep.extend(opts[KEYS.sim_fep_values])
+    coul = coul.extend(opts[KEYS.sim_coul_values])
+    vdw = vdw.extend(opts[KEYS.sim_vdw_values])
+    weights = weights.extend(opts[KEYS.sim_weight_values])
     if verbose > 2:
         print('Debug, genstates')
 
