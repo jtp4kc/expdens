@@ -287,6 +287,7 @@ class FileScan:
                 self.weights.append(weight)
             if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                 capture_weights = True
+                self.weights = []
             if 'Finished mdrun' in line:
                 self.finish_detected = True
             if 'Received the TERM signal' in line:
@@ -297,7 +298,6 @@ class FileScan:
             if capture_fail:
                 capture_fail = False
                 self.fail_statement = line
-
 
     def get_wanglandau_weights(self):
         return self.weights
