@@ -1408,7 +1408,7 @@ def setup(options, args, opts, parser, cur_dir, save_name):
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
             return
-        save_lib = saver.parse_options(opts[KEYS.save])
+        save_lib = saver.parse_options(save_name)
         if isinstance(save_lib, list):
             save_lib = save_lib[0]
         SUBS[subcommand](save_lib)
