@@ -204,6 +204,30 @@ def option_defaults():
 # provide custom default library
 param.option_defaults = option_defaults
 
+class SaveKeys(Keys):
+
+    def __init__(self):
+        Keys.__init__(self)
+        self.names = "sim-names"
+        self.files = "sim-files"
+        self.folders = "sim-folders"
+
+        self.add_keys(self.names, self.files, self.folders)
+
+save_keys = SaveKeys()
+saver = Parameters(save_keys)
+
+def save_defaults():
+    options = dict()
+
+    options[save_keys.names] = []
+    options[save_keys.files] = []
+    options[save_keys.folders] = []
+
+    return options
+
+saver.option_defaults = save_defaults
+
 #################################################################################
 #################################################################################
 
@@ -1251,6 +1275,15 @@ def gen_opt(opts):
     if opts[KEYS.run_array]:
         generate(opts)
 
+def sim_status(save):
+    pass
+
+def sim_cancel(save):
+    pass
+
+def sim_clean(save):
+    pass
+
 def setup(options, args, opts, parser, cur_dir):
     global verbose  # ensure that we are talking about the same verbose here
     if options.verbose:
@@ -1340,6 +1373,12 @@ def main(argv=None):
         "\t  {0:<12s} - run a batch of simulations\n".format('array') +
         "\t  {0:<12s} - output a formatted mdp file\n".format('mdp') +
         "\t  {0:<12s} - perform tasks based on a param file\n".format('opt') +
+        "\t  {0:<12s} - cancel a series of tasks run by {1}\n".format('cancel',
+            name_) +
+        "\t  {0:<12s} - delete a series of tasks run by {1}\n".format('clean',
+            name_) +
+        "\t  {0:<12s} - check a series of tasks run by {1}\n".format('status',
+            name_) +
         "\t  {0:<12s} - print usage and exit".format('exit'))
 
     if len(argv) < 1:
@@ -1366,7 +1405,8 @@ def main(argv=None):
 
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
-    'opt': gen_opt})
+    'opt': gen_opt, 'status': sim_status, 'cancel': sim_cancel,
+    'clean': sim_clean})
 KEYS.update()
 if __name__ == '__main__':
     # initialize the subcommand list
