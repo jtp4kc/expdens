@@ -1411,12 +1411,12 @@ def setup(options, args, opts, parser, cur_dir, save_name):
     if subcommand in POST_COMMANDS:
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
-            return
+            return False  # don't print save files
         save_lib = saver.parse_options(save_name)
         if isinstance(save_lib, list):
             save_lib = save_lib[0]
         SUBS[subcommand](save_lib)
-        return
+        return False  # don't print save files
 
     # output run options
     if opts[KEYS.job_name]:
@@ -1442,6 +1442,7 @@ def setup(options, args, opts, parser, cur_dir, save_name):
 
     # perform requested file output and job submissions
     SUBS[subcommand](opts)
+    return True  # print save files
 
 def main(argv=None):
     if argv == None:
@@ -1516,13 +1517,13 @@ def main(argv=None):
 
     if isinstance(opt_list, list):
         for opts in opt_list:
-            setup(options, args, opts, parser, cur_dir, save_name)
+            do_output = setup(options, args, opts, parser, cur_dir, save_name)
         opts = opt_list[0]
     else:
-        setup(options, args, opt_list, parser, cur_dir, save_name)
+        do_output = setup(options, args, opt_list, parser, cur_dir, save_name)
         opts = opt_list
 
-    if options.save:
+    if not do_output:
         return 0
 
     global CANCEL_LIST
