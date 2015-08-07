@@ -12,7 +12,9 @@ from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
 
 verbose = 0
-cancel_list = []  # optional list to build into a cancel script
+SAVE_LIBRARY = {}
+CANCEL_LIST = []
+POST_COMMANDS = []  #
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
     return "One of: " + ", ".join(SUBS.keys())
@@ -210,11 +212,11 @@ class SaveKeys(Keys):
 
     def __init__(self):
         Keys.__init__(self)
-        self.names = "sim-names"
+        self.jobs = "sim-job-tuples"
         self.files = "sim-files"
-        self.folders = "sim-folders"
+        self.folders = "sim-folder-tuples"
 
-        self.add_keys(self.names, self.files, self.folders)
+        self.add_keys("", self.jobs, self.files, self.folders)
 
 save_keys = SaveKeys()
 saver = Parameters(save_keys)
@@ -223,6 +225,7 @@ def save_defaults():
     options = dict()
 
     options[save_keys.names] = []
+    options[save_keys.jobs] = {}
     options[save_keys.files] = []
     options[save_keys.folders] = []
 
@@ -243,6 +246,10 @@ class FileScan:
         self.newscan = []
         self.weights = None
         self.num_of_steps = None
+        self.finish_detected = False
+        self.cancel_detected = False
+        self.failure_detected = False
+        self.fail_statement = ""
 
     def scan(self):
         if not os.path.exists(self.filepath):
@@ -266,6 +273,7 @@ class FileScan:
 
         count = 0
         capture_weights = False
+        capture_fail = False
         for line in self.scan:
             count += 1
             if count == 2:
@@ -279,6 +287,16 @@ class FileScan:
                 self.weights.append(weight)
             if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                 capture_weights = True
+            if 'Finished mdrun' in line:
+                self.finish_detected = True
+            if 'Received the TERM signal' in line:
+                self.cancel_detected = True
+            if 'Fatal error:' in line:
+                self.failure_detected
+                capture_fail = True
+            if capture_fail:
+                capture_fail = False
+                self.fail_statement = line
 
 
     def get_wanglandau_weights(self):
@@ -835,7 +853,7 @@ class BEPGen:
         BEPGen.params.write_options(file_name, self.fields_output)
 
 def generate(opts):
-    global cancel_list
+    global CANCEL_LIST
     randseed = opts[KEYS.mdr_genseed]
     submit = opts[KEYS._submit]
     job_name = opts[KEYS.job_name]
@@ -982,8 +1000,17 @@ def generate(opts):
                 num = num.replace("\n", "")
                 print(line)
                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
-                cancel_list.append("# cancel job " + job_name + suffix)
-                cancel_list.append("scancel " + num)
+                CANCEL_LIST.append("# cancel job " + job_name + suffix)
+                CANCEL_LIST.append("scancel " + num)
+
+                global save_library
+                jname = job_name + suffix
+                SAVE_LIBRARY[save_keys.jobs].append((jname, num))
+                SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
+                SAVE_LIBRARY[save_keys.files].append(dir_ +
+                    opts[KEYS._params_out])
+                SAVE_LIBRARY[save_keys.folders].append((dir_ + folder,
+                    jname, job_name))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
@@ -1295,16 +1322,58 @@ def gen_opt(opts):
     if opts[KEYS.run_array]:
         generate(opts)
 
-def sim_status(save):
+def sim_status(save_lib):
+    for folder, job, name in save_lib[save_keys.folders]:
+        logfile = os.path.join(folder, name + ".log")
+        status = "STATUS UNKNOWN"
+        extra = None
+        step = 0
+        if os.path.exists(logfile):
+            scan = FileScan(logfile)
+            try:
+                scan.scan()
+                step = scan.get_frame_number()
+                status = "IN PROGRESS"
+                if scan.end_detected:
+                    status = "FINISHED"
+                if scan.cancel_detected:
+                    status = "CANCELLED"
+                    outfile = os.path.join(folder, name + ".out")
+                    if os.path.exists(outfile):
+                        for line in open(outfile, "r"):
+                            if 'slurmstepd:' in line:
+                                extra = line.replace("slurmstepd:", "")
+                if scan.failure_detected:
+                    status = "FAILED"
+                    extra = scan.fail_statement
+            except Exception as ex:
+                print(ex)
+        else:
+            status = "NOT STARTED"
+        print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
+        if extra:
+            print("" + extra.replace("\n", ""))
     pass
 
-def sim_cancel(save):
-    pass
+def sim_cancel(save_lib):
+    for name, num in save_lib[save_keys.jobs]:
+        if verbose > 0:
+            print('Cancelling ' + name + ', job #' + num)
+        os.system("scancel " + num)
 
-def sim_clean(save):
-    pass
+def sim_clean(save_lib):
+    for filename in save_lib[save_keys.files]:
+        if os.path.exists(filename):
+            if verbose > 0:
+                print('Removing ' + filename)
+            os.system("rm " + filename)
+    for folder, _, _ in save_lib[save_keys.folders]:
+        if os.path.exists(folder):
+            if verbose > 0:
+                print('Removing folder ' + folder)
+            os.system("rm -r " + folder)
 
-def setup(options, args, opts, parser, cur_dir):
+def setup(options, args, opts, parser, cur_dir, save_name):
     global verbose  # ensure that we are talking about the same verbose here
     if options.verbose:
         verbose = options.verbose
@@ -1331,6 +1400,14 @@ def setup(options, args, opts, parser, cur_dir):
     if options.slurm:
         opts[KEYS.run_array] = options.slurm
     opts[KEYS.subcommand] = subcommand
+
+    if subcommand in POST_COMMANDS:
+        if save_name == None:
+            print(subcommand + " requires a save file to be specified")
+            return
+        save_lib = saver.parse_options(opts[KEYS.save])
+        SUBS[subcommand](save_lib)
+        return
 
     # output run options
     if opts[KEYS.job_name]:
@@ -1375,6 +1452,9 @@ def main(argv=None):
     parser.add_option("--par", help="Optional configuration file to specify" +
         " command line parameters and more.",
         default=None, metavar="file.par")
+    parser.add_option("--save", help="File generated by a previous run of the" +
+        " code, needed to check status or other similar tasks",
+        default=None, metavar=("file.save"))
     parser.add_option("--slurm", help="""Prepare scripts to run on Rivanna""",
         default=None, action='store_true')
     parser.add_option("--mdp", help="Output the Molecular Dynamics Parameters" +
@@ -1417,16 +1497,27 @@ def main(argv=None):
     else:
         opt_list = opts
 
+    save_name = None
+    if options.save:
+        print('Reading previous launch files from ' + options.save)
+        save_name = options.save
+
+    global SAVE_LIBRARY
+    SAVE_LIBRARY = save_defaults()
+
     if isinstance(opt_list, list):
         for opts in opt_list:
-            setup(options, args, opts, parser, cur_dir)
+            setup(options, args, opts, parser, cur_dir, save_name)
         opts = opt_list[0]
     else:
-        setup(options, args, opt_list, parser, cur_dir)
+        setup(options, args, opt_list, parser, cur_dir, save_name)
         opts = opt_list
 
-    global cancel_list
-    if cancel_list:
+    if options.save:
+        return 0
+
+    global CANCEL_LIST
+    if CANCEL_LIST:
         dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
         if not os.path.exists(dir_):
             os.mkdir(dir_)
@@ -1434,12 +1525,21 @@ def main(argv=None):
         # Create cancel file
         file_ = open("cancel.sh", "w")
         file_.write("#! /usr/bin/sh \n")
-        for line in cancel_list:
+        for line in CANCEL_LIST:
             file_.write(line + "\n")
         file_.close()
-        cancel_list = []
+        CANCEL_LIST = []
         os.chdir(cur_dir)
 
+    if opts[KEYS.job_name]:
+        save_name = opts[KEYS.job_name] + ".save"
+        save_out = backup.backup_file('./', save_name, verbose=verbose)
+    else:
+        save_name = name_ + ".save"
+        save_out = backup.backup_file('', save_name, verbose=verbose)
+    param.write_options(save_out, SAVE_LIBRARY)
+
+POST_COMMANDS.extend(['status', 'cancel', 'clean'])
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
     'opt': gen_opt, 'status': sim_status, 'cancel': sim_cancel,
