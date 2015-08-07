@@ -1444,7 +1444,7 @@ def main(argv=None):
         argv = sys.argv[1:]
 
     cur_dir = os.getcwd()
-    name_ = os.path.basename(__file__).replace('.py', '')
+    name_ = os.path.basename(__file__).replace('.pyc', '').replace('.py', '')
     print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) + '\n')
 
     opts = option_defaults()
