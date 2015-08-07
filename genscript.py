@@ -1446,9 +1446,9 @@ def setup(options, args, opts, parser, cur_dir, save_name):
             return False  # don't print save files
         save_path = os.path.realpath(save_name)
         save_lib = saver.parse_options(save_path)
-        save_lib[save_keys.name] = save_path
         if isinstance(save_lib, list):
             save_lib = save_lib[0]
+        save_lib[save_keys.name] = save_path
         SUBS[subcommand](save_lib)
         return False  # don't print save files
 
