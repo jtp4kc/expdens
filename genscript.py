@@ -1544,7 +1544,8 @@ def main(argv=None):
         os.chdir(cur_dir)
 
     if options.par:
-        save_name = options.par.replace(param._file_ext(), "") + ".save"
+        par_base = os.path.basename(options.par)
+        save_name = par_base.replace(param._file_ext(), "") + ".save"
         save_out = backup.backup_file('./', save_name, verbose=verbose)
     else:
         save_name = name_ + ".save"
