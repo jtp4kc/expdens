@@ -12,6 +12,7 @@ from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
 
 verbose = 0
+cancel_list = []  # optional list to build into a cancel script
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
     return "One of: " + ", ".join(SUBS.keys())
@@ -76,7 +77,7 @@ class MyKeys(Keys):
             " generate by adding entries (1.0's) at the end of the state" +
             " index list"))
         self.add_key(self.sim_wgtxcoupled, section, ("Emulate these number of" +
-            " states by adding ln(x) to all but the beginning state"))
+            " states by subtracting ln(x) from all but the beginning state"))
         self.add_key(self.sim_wgtxuncupld, section, ("Emulate these number of" +
             " states by adding ln(x) to just the end state"))
         self.add_keys(section, self.sim_use_mpi, self.sim_time,
@@ -86,7 +87,8 @@ class MyKeys(Keys):
             self.sim_incrementor, self.sim_init_lambda,
             self.sim_fixed_lambda, self.sim_use_gibbs, self.sim_use_metro,
             self.sim_gibbs_delta, self.sim_nstout,
-            self.sim_nst_mc, self.sim_pressure, self.sim_precision)
+            self.sim_nst_mc, self.sim_temp_alg, self.sim_pressure,
+            self.sim_precision, self.sim_gromacs5)
         ################################################
         # MDP Array
         self.mdr_count = 'mdr-number-of-simulations'
@@ -96,7 +98,7 @@ class MyKeys(Keys):
         self._expected_frames = "mdr-expected-number-of-frames"
 
         section = "mdrun Array"
-        self.add_key(self.mdr_threads, section=section, 'Max 20 threads (for now)')
+        self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
             self.mdr_genseed)
         ################################################
@@ -353,8 +355,10 @@ class SlurmGen:
         fields["partition"] = "serial"
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            fields["nnodes"] = math.ceil(fields["ntasks"] / 20)
-        if fields["nnodes"] > 1:
+            fields["nnodes"] = int(math.ceil(fields["ntasks"] / 20.0))
+        if fields["nnodes"] == 0:
+            fields["nnodes"] = 1
+        elif fields["nnodes"] > 1:
             fields["partition"] = "parallel"
         if self.calc_wt:
             fields["queue-time"] = self.walltime(fields["time-ns"],
@@ -664,7 +668,7 @@ gen_seed                 = {gen-seed}
 ; Groups to couple separately = 
 tc-grps                  = System
 ; Time constant (ps) and reference temperature (K) = 
-tcoupl                   = {temp_alg}
+tcoupl                   = {temp-alg}
 tau_t                    = {tau_t} ; ~TP
 ref_t                    = {temp:0.1f}
 """
@@ -831,6 +835,7 @@ class BEPGen:
         BEPGen.params.write_options(file_name, self.fields_output)
 
 def generate(opts):
+    global cancel_list
     randseed = opts[KEYS.mdr_genseed]
     submit = opts[KEYS._submit]
     job_name = opts[KEYS.job_name]
@@ -860,7 +865,6 @@ def generate(opts):
             suffix = ''
 
         file_name = job_name + suffix + '.slurm'
-        timens = opts[KEYS.sim_time]
         workdir = os.path.join(path, job_name + suffix, "")
         callingdir = opts[KEYS._calling_dir]
         indir = os.path.join('..', '')
@@ -934,6 +938,7 @@ def generate(opts):
         builder.fields_general['workdir'] = workdir
         builder.fields_general['jobstatus'] = os.path.join('..',
             'jobstatus.txt')
+        builder.fields_header['time-ns'] = opts[KEYS.sim_time]
         builder.fields_header['queue-time'] = opts[KEYS.mdr_queue_time]
         builder.fields_header['outputfile'] = os.path.join(path,
             job_name + suffix, job_name)
@@ -965,12 +970,25 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                os.system("sbatch " + file_name)
-                print("Sbatch'd Job " + job_name + suffix)
+                import subprocess
+                file_ = open("cancel.sh", "w")
+                # os.system("sbatch " + file_name)
+                subprocess.call(["sbatch", file_name], stdout=file_)
+                file_.close()
+                file_ = open("cancel.sh", "r")
+                line = file_.readline()
+                file_.close()
+                num = line.split(" ")[-1]
+                num = num.replace("\n", "")
+                print(line)
+                print("Sbatch'd Job " + job_name + suffix + " as job " + num)
+                cancel_list.append("# cancel job " + job_name + suffix)
+                cancel_list.append("scancel " + num)
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
     if submit:
+        # Create analysis options file
         num_coup = opts[KEYS.sim_genxcoupled]
         num_uncp = opts[KEYS.sim_genxuncupld]
         num_states = len(opts[KEYS.sim_fep_values]) + num_coup + num_uncp
@@ -1026,10 +1044,11 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         os.mkdir(dir_)
     os.chdir(dir_)
 
-    fep = opts[KEYS.sim_fep_values]
-    coul = opts[KEYS.sim_coul_values]
-    vdw = opts[KEYS.sim_vdw_values]
-    weights = opts[KEYS.sim_weight_values]
+    fep, coul, vdw, weights = [], [], [], []
+    fep.extend(opts[KEYS.sim_fep_values])
+    coul.extend(opts[KEYS.sim_coul_values])
+    vdw.extend(opts[KEYS.sim_vdw_values])
+    weights.extend(opts[KEYS.sim_weight_values])
     if verbose > 2:
         print('Debug, genstates')
 
@@ -1117,6 +1136,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder.fields_params['dt'] = 0.002;  # ps
     builder.fields_params['time-ns'] = opts[KEYS.sim_time]
     builder.fields_velocities['gen-seed'] = genseed
+    builder.fields_coupling['temp-alg'] = opts[KEYS.sim_temp_alg]
     builder.fields_expdens['ligand'] = opts[KEYS.ligand]
     builder.fields_expdens['fep-lambdas'] = fep_lambdas
     builder.fields_expdens['coul-lambdas'] = coul_lambdas
@@ -1400,8 +1420,25 @@ def main(argv=None):
     if isinstance(opt_list, list):
         for opts in opt_list:
             setup(options, args, opts, parser, cur_dir)
+        opts = opt_list[0]
     else:
         setup(options, args, opt_list, parser, cur_dir)
+        opts = opt_list
+
+    global cancel_list
+    if cancel_list:
+        dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+        if not os.path.exists(dir_):
+            os.mkdir(dir_)
+        os.chdir(dir_)
+        # Create cancel file
+        file_ = open("cancel.sh", "w")
+        file_.write("#! /usr/bin/sh \n")
+        for line in cancel_list:
+            file_.write(line + "\n")
+        file_.close()
+        cancel_list = []
+        os.chdir(cur_dir)
 
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
