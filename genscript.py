@@ -224,8 +224,7 @@ saver = Parameters(save_keys)
 def save_defaults():
     options = dict()
 
-    options[save_keys.names] = []
-    options[save_keys.jobs] = {}
+    options[save_keys.jobs] = []
     options[save_keys.files] = []
     options[save_keys.folders] = []
 
@@ -1410,6 +1409,8 @@ def setup(options, args, opts, parser, cur_dir, save_name):
             print(subcommand + " requires a save file to be specified")
             return
         save_lib = saver.parse_options(opts[KEYS.save])
+        if isinstance(save_lib, list):
+            save_lib = save_lib[0]
         SUBS[subcommand](save_lib)
         return
 
