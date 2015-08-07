@@ -254,14 +254,9 @@ class FileScan:
     def scan(self):
         if not os.path.exists(self.filepath):
             raise Exception('Simulation file not found ' + self.filepath)
-
-        print('Here C')
-
         os.system('tail -500 {0} &>{1}'.format(self.filepath, FileScan.TMPNAME))
         if not os.path.exists(FileScan.TMPNAME):
             raise Exception('Tail command appears to have failed.')
-
-        print('Here D')
 
         for line in open(FileScan.TMPNAME):
             if 'Step' in line and 'Time' in line and 'Lambda' in line:
@@ -276,12 +271,10 @@ class FileScan:
         if len(self.oldscan) > len(self.newscan):
             self.newscan = self.oldscan
 
-        print('Here E')
-
         count = 0
         capture_weights = False
         capture_fail = False
-        for line in self.scan:
+        for line in self.newscan:
             count += 1
             if count == 2:
                 splt = line.split()
