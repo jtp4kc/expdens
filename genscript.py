@@ -859,10 +859,10 @@ def submit_slurm(slurm_file, job):
     subprocess.call(["sbatch", slurm_file], stdout=file_)
     file_.close()
     file_ = open("cancel.sh", "r")
-    line = file_.readline()
+    line = file_.readline().replace("\n", "")
     file_.close()
     num = line.split(" ")[-1]
-    num = num.replace("\n", "")
+    num = num
     print(line)
     print("Sbatch'd Job " + job + " as job " + num)
     return num
