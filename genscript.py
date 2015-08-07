@@ -238,7 +238,7 @@ saver.option_defaults = save_defaults
 
 class FileScan:
 
-    TMPNAME = "#FilescanTempFile.out#"
+    TMPNAME = "FilescanTempFile.out.temp"
 
     def __init__(self, path):
         self.filepath = path
