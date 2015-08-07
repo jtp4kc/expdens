@@ -969,6 +969,7 @@ def generate(opts):
         file_ = open(file_name, 'w')
         file_.write(builder.compile())
         file_.close()
+
         if submit:
             folder = job_name + suffix
             dir_name = os.path.join(path, folder)
@@ -1005,13 +1006,14 @@ def generate(opts):
                 global save_library
                 jname = job_name + suffix
                 SAVE_LIBRARY[save_keys.jobs].append((jname, num))
-                SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
-                SAVE_LIBRARY[save_keys.files].append(dir_ +
-                    opts[KEYS._params_out])
-                SAVE_LIBRARY[save_keys.folders].append((dir_ + folder,
-                    jname, job_name))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
+
+        global save_library
+        jname = job_name + suffix
+        SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
+        SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
+        SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
 
     if submit:
         # Create analysis options file
@@ -1051,9 +1053,11 @@ def generate(opts):
         analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
         if opts[KEYS.sim_fixed_lambda]:
             analysis.fields_output[BEPGen.KEYS.single_state] = state_index
+
         filename = "analysis_" + opts[KEYS.job_name] + ".bep"
         filepath = os.path.realpath(filename)
         analysis.write(filepath)
+
         SAVE_LIBRARY[save_keys.files].append(filepath)
 
     os.chdir(cur_dir)
