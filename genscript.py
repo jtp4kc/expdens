@@ -285,6 +285,9 @@ class FileScan:
                 splt = line.split()
                 weight = float(splt[5])
                 self.weights.append(weight)
+            if capture_fail:
+                capture_fail = False
+                self.fail_statement = line
             if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                 capture_weights = True
                 self.weights = []
@@ -295,9 +298,6 @@ class FileScan:
             if 'Fatal error:' in line:
                 self.failure_detected = True
                 capture_fail = True
-            if capture_fail:
-                capture_fail = False
-                self.fail_statement = line
 
     def get_wanglandau_weights(self):
         return self.weights
