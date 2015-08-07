@@ -13,7 +13,7 @@ from param_versions.version_2_0 import Keys
 
 verbose = 0
 SAVE_LIBRARY = {}
-CANCEL_LIST = []
+# CANCEL_LIST = []
 POST_COMMANDS = []  #
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
@@ -854,15 +854,15 @@ class BEPGen:
 
 def submit_slurm(slurm_file, job):
     import subprocess
-    file_ = open("cancel.sh", "w")
+    file_ = open("cancel.temp", "w")
     # os.system("sbatch " + file_name)
     subprocess.call(["sbatch", slurm_file], stdout=file_)
     file_.close()
-    file_ = open("cancel.sh", "r")
+    file_ = open("cancel.temp", "r")
     line = file_.readline().replace("\n", "")
     file_.close()
+    os.remove("cancel.temp")
     num = line.split(" ")[-1]
-    num = num
     print(line)
     print("Sbatch'd Job " + job + " as job " + num)
     return num
@@ -1005,9 +1005,8 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 submit_slurm(file_name, job_name + suffix)
-                CANCEL_LIST.append("# cancel job " + job_name + suffix)
-                CANCEL_LIST.append("scancel " + num)
-
+#                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
+#                 CANCEL_LIST.append("scancel " + str(num))
                 global save_library
                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
 #                 import subprocess
@@ -1397,8 +1396,8 @@ def sim_submit(save_lib):
 def sim_cancel(save_lib):
     for name, num in save_lib[save_keys.jobs]:
         if verbose > 0:
-            print('Cancelling ' + name + ', job #' + num)
-        os.system("scancel " + num)
+            print('Cancelling ' + name + ', job #' + str(num))
+        os.system("scancel " + str(num))
 
 def sim_clean(save_lib):
     for filename in save_lib[save_keys.files]:
@@ -1562,20 +1561,20 @@ def main(argv=None):
     if not do_output:
         return 0
 
-    global CANCEL_LIST
-    if CANCEL_LIST:
-        dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
-        if not os.path.exists(dir_):
-            os.mkdir(dir_)
-        os.chdir(dir_)
-        # Create cancel file
-        file_ = open("cancel.sh", "w")
-        file_.write("#! /usr/bin/sh \n")
-        for line in CANCEL_LIST:
-            file_.write(line + "\n")
-        file_.close()
-        CANCEL_LIST = []
-        os.chdir(cur_dir)
+#     global CANCEL_LIST
+#     if CANCEL_LIST:
+#         dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+#         if not os.path.exists(dir_):
+#             os.mkdir(dir_)
+#         os.chdir(dir_)
+#         # Create cancel file
+#         file_ = open("cancel.sh", "w")
+#         file_.write("#! /usr/bin/sh \n")
+#         for line in CANCEL_LIST:
+#             file_.write(line + "\n")
+#         file_.close()
+#         CANCEL_LIST = []
+#         os.chdir(cur_dir)
 
     if options.par:
         par_base = os.path.basename(options.par)
