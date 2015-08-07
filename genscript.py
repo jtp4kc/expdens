@@ -293,7 +293,7 @@ class FileScan:
             if 'Received the TERM signal' in line:
                 self.cancel_detected = True
             if 'Fatal error:' in line:
-                self.failure_detected
+                self.failure_detected = True
                 capture_fail = True
             if capture_fail:
                 capture_fail = False
