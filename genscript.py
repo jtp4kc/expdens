@@ -1536,13 +1536,13 @@ def main(argv=None):
         CANCEL_LIST = []
         os.chdir(cur_dir)
 
-    if opts[KEYS.job_name]:
-        save_name = opts[KEYS.job_name] + ".save"
+    if options.par:
+        save_name = options.par.replace(param._file_ext(), "") + ".save"
         save_out = backup.backup_file('./', save_name, verbose=verbose)
     else:
         save_name = name_ + ".save"
         save_out = backup.backup_file('', save_name, verbose=verbose)
-    param.write_options(save_out, SAVE_LIBRARY)
+    saver.write_options(save_out, SAVE_LIBRARY)
 
 POST_COMMANDS.extend(['status', 'cancel', 'clean'])
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
