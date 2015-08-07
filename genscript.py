@@ -212,6 +212,7 @@ class SaveKeys(Keys):
 
     def __init__(self):
         Keys.__init__(self)
+        self.name = "_save-name"
         self.jobs = "sim-job-tuples"
         self.files = "sim-files"
         self.folders = "sim-folder-tuples"
@@ -851,6 +852,21 @@ class BEPGen:
     def write(self, file_name):
         BEPGen.params.write_options(file_name, self.fields_output)
 
+def submit_slurm(slurm_file, job):
+    import subprocess
+    file_ = open("cancel.sh", "w")
+    # os.system("sbatch " + file_name)
+    subprocess.call(["sbatch", slurm_file], stdout=file_)
+    file_.close()
+    file_ = open("cancel.sh", "r")
+    line = file_.readline()
+    file_.close()
+    num = line.split(" ")[-1]
+    num = num.replace("\n", "")
+    print(line)
+    print("Sbatch'd Job " + job + " as job " + num)
+    return num
+
 def generate(opts):
     global CANCEL_LIST
     randseed = opts[KEYS.mdr_genseed]
@@ -988,24 +1004,30 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                import subprocess
-                file_ = open("cancel.sh", "w")
-                # os.system("sbatch " + file_name)
-                subprocess.call(["sbatch", file_name], stdout=file_)
-                file_.close()
-                file_ = open("cancel.sh", "r")
-                line = file_.readline()
-                file_.close()
-                num = line.split(" ")[-1]
-                num = num.replace("\n", "")
-                print(line)
-                print("Sbatch'd Job " + job_name + suffix + " as job " + num)
+                submit_slurm(file_name, job_name + suffix)
                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
                 CANCEL_LIST.append("scancel " + num)
 
                 global save_library
-                jname = job_name + suffix
-                SAVE_LIBRARY[save_keys.jobs].append((jname, num))
+                SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
+#                 import subprocess
+#                 file_ = open("cancel.sh", "w")
+#                 # os.system("sbatch " + file_name)
+#                 subprocess.call(["sbatch", file_name], stdout=file_)
+#                 file_.close()
+#                 file_ = open("cancel.sh", "r")
+#                 line = file_.readline()
+#                 file_.close()
+#                 num = line.split(" ")[-1]
+#                 num = num.replace("\n", "")
+#                 print(line)
+#                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
+#                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
+#                 CANCEL_LIST.append("scancel " + num)
+#
+#                 global save_library
+#                 jname = job_name + suffix
+#                 SAVE_LIBRARY[save_keys.jobs].append((jname, num))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
@@ -1360,7 +1382,17 @@ def sim_status(save_lib):
         print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
         if extra:
             print("" + extra.replace("\n", ""))
-    pass
+
+def sim_submit(save_lib):
+    submitted = False
+    for filename in save_lib[save_keys.files]:
+        if os.path.exists(filename) and filename.endswith('.slurm'):
+            submitted = True
+            job = os.path.basename(filename)
+            num = submit_slurm(filename, job)
+            save_lib[save_keys.jobs].append((job, num))
+    if submitted:
+        saver.write_options(save_lib[save_keys.name], save_lib)
 
 def sim_cancel(save_lib):
     for name, num in save_lib[save_keys.jobs]:
@@ -1412,7 +1444,9 @@ def setup(options, args, opts, parser, cur_dir, save_name):
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
             return False  # don't print save files
-        save_lib = saver.parse_options(save_name)
+        save_path = os.path.realpath(save_name)
+        save_lib = saver.parse_options(save_path)
+        save_lib[save_keys.name] = save_path
         if isinstance(save_lib, list):
             save_lib = save_lib[0]
         SUBS[subcommand](save_lib)
@@ -1552,11 +1586,11 @@ def main(argv=None):
         save_out = backup.backup_file('', save_name, verbose=verbose)
     saver.write_options(save_out, SAVE_LIBRARY)
 
-POST_COMMANDS.extend(['status', 'cancel', 'clean'])
+POST_COMMANDS.extend(['status', 'submit', 'cancel', 'clean'])
 SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
-    'opt': gen_opt, 'status': sim_status, 'cancel': sim_cancel,
-    'clean': sim_clean})
+    'opt': gen_opt, 'status': sim_status, 'submit': sim_submit,
+    'cancel': sim_cancel, 'clean': sim_clean})
 KEYS.update()
 if __name__ == '__main__':
     # initialize the subcommand list
