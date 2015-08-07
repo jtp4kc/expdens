@@ -1362,7 +1362,7 @@ def sim_status(save_lib):
                 scan.scan()
                 step = scan.get_frame_number()
                 status = "IN PROGRESS"
-                if scan.end_detected:
+                if scan.finish_detected:
                     status = "FINISHED"
                 if scan.cancel_detected:
                     status = "CANCELLED"
