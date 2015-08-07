@@ -1052,7 +1052,10 @@ def generate(opts):
         analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
         if opts[KEYS.sim_fixed_lambda]:
             analysis.fields_output[BEPGen.KEYS.single_state] = state_index
-        analysis.write("analysis_" + opts[KEYS.job_name] + ".bep")
+        filename = "analysis_" + opts[KEYS.job_name] + ".bep"
+        filepath = os.path.realpath(filename)
+        analysis.write(filepath)
+        SAVE_LIBRARY[save_keys.files].append(filepath)
 
     os.chdir(cur_dir)
 
@@ -1177,10 +1180,11 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder.fields_expdens['wl-weights'] = wl_weights
     builder.fields_expdens['incrementor'] = opts[KEYS.sim_incrementor]
 
-    file_name = name + '.mdp'
+    file_name = os.path.realpath(name + '.mdp')
     file_ = open(file_name, 'w')
     file_.write(builder.compile())
     file_.close()
+    SAVE_LIBRARY[save_keys.files].append(file_name)
 
     os.chdir(cur_dir)
     return True
