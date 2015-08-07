@@ -254,7 +254,7 @@ class FileScan:
     def scan(self):
         if not os.path.exists(self.filepath):
             raise Exception('Simulation file not found ' + self.filepath)
-        os.system('tail -500 {0} &>{1}'.format(self.filepath, FileScan.TMPNAME))
+        os.system('tail -500 {0} &>"{1}"'.format(self.filepath, FileScan.TMPNAME))
         if not os.path.exists(FileScan.TMPNAME):
             raise Exception('Tail command appears to have failed.')
 
