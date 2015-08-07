@@ -1515,9 +1515,11 @@ def main(argv=None):
     global SAVE_LIBRARY
     SAVE_LIBRARY = save_defaults()
 
+    do_output = False
     if isinstance(opt_list, list):
         for opts in opt_list:
-            do_output = setup(options, args, opts, parser, cur_dir, save_name)
+            do_output = (setup(options, args, opts, parser, cur_dir, save_name)
+                or do_output)
         opts = opt_list[0]
     else:
         do_output = setup(options, args, opt_list, parser, cur_dir, save_name)
