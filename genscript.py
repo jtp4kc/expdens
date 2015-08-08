@@ -339,6 +339,8 @@ class SlurmGen:
             time_limit = 2  # two day limit on parallel queue
         if time_ > time_limit:
             time_ = time_limit
+        if time_ < 0.5:  # Since it doesn't hurt, and algorithm isn't perfect
+            time_ = 0.5  # make this a minimum run time, to get everything
         frac, days = math.modf(time_)
         frac, hours = math.modf(frac * 24.0)
         frac, mins = math.modf(frac * 60.0)
