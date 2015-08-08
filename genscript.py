@@ -258,10 +258,21 @@ class FileScan:
         if not os.path.exists(FileScan.TMPNAME):
             raise Exception('Tail command appears to have failed.')
 
+        capture_fail = False
         for line in open(FileScan.TMPNAME):
+            if capture_fail:
+                capture_fail = False
+                self.fail_statement = line
             if 'Step' in line and 'Time' in line and 'Lambda' in line:
                 self.oldscan = self.newscan
                 self.newscan = []
+            if 'Received the TERM signal' in line:
+                self.cancel_detected = True
+            if 'Fatal error:' in line:
+                self.failure_detected = True
+                capture_fail = True
+            if 'Finished mdrun' in line:
+                self.finish_detected = True
             self.newscan.append(line)
         os.remove(FileScan.TMPNAME)
 
@@ -273,7 +284,6 @@ class FileScan:
 
         count = 0
         capture_weights = False
-        capture_fail = False
         for line in self.newscan:
             count += 1
             if count == 2:
@@ -285,19 +295,9 @@ class FileScan:
                 splt = line.split()
                 weight = float(splt[5])
                 self.weights.append(weight)
-            if capture_fail:
-                capture_fail = False
-                self.fail_statement = line
             if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                 capture_weights = True
                 self.weights = []
-            if 'Finished mdrun' in line:
-                self.finish_detected = True
-            if 'Received the TERM signal' in line:
-                self.cancel_detected = True
-            if 'Fatal error:' in line:
-                self.failure_detected = True
-                capture_fail = True
 
     def get_wanglandau_weights(self):
         return self.weights
@@ -1362,15 +1362,18 @@ def sim_status(save_lib):
                 scan.scan()
                 step = scan.get_frame_number()
                 status = "IN PROGRESS"
+                outfile = os.path.join(folder, name + ".out")
+                if os.path.exists(outfile):
+                    for line in open(outfile, "r"):
+                        if 'slurmstepd:' in line:
+                            extra = line.replace("slurmstepd:", "")
+                        if ' fault' in line:
+                            status = "FAULT"
+                            extra = line
                 if scan.finish_detected:
                     status = "FINISHED"
                 if scan.cancel_detected:
-                    status = "CANCELLED"
-                    outfile = os.path.join(folder, name + ".out")
-                    if os.path.exists(outfile):
-                        for line in open(outfile, "r"):
-                            if 'slurmstepd:' in line:
-                                extra = line.replace("slurmstepd:", "")
+                    status = "CANCELED"
                 if scan.failure_detected:
                     status = "FAILED"
                     extra = scan.fail_statement
@@ -1380,7 +1383,7 @@ def sim_status(save_lib):
             status = "NOT STARTED"
         print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
         if extra:
-            print("" + extra.replace("\n", ""))
+            print("\t" + extra.replace("\n", ""))
 
 def sim_submit(save_lib):
     submitted = False
