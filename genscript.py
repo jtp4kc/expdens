@@ -1036,7 +1036,8 @@ def generate(opts):
         jname = job_name + suffix
         SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
         SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
-        SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
+        if submit:
+            SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
 
     if submit:
         # Create analysis options file
