@@ -1006,7 +1006,7 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                submit_slurm(file_name, job_name + suffix)
+                num = submit_slurm(file_name, job_name + suffix)
 #                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
 #                 CANCEL_LIST.append("scancel " + str(num))
                 global save_library
