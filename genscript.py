@@ -1556,11 +1556,16 @@ def main(argv=None):
 
     do_output = False
     if isinstance(opt_list, list):
+        if options.verbose:
+            print("List received, parameters are v2+, {0} entries".format(
+                len(opt_list)))
         for opts in opt_list:
             do_output = (setup(options, args, opts, parser, cur_dir, save_name)
                 or do_output)
         opts = opt_list[0]
     else:
+        if options.verbose:
+            print("Dictionary received, parameters are v1.x")
         do_output = setup(options, args, opt_list, parser, cur_dir, save_name)
         opts = opt_list
 
