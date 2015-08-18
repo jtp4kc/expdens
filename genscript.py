@@ -1261,7 +1261,7 @@ def gen_rand(opts):
             opts[KEYS.sim_weight_values] = weights
 
             os.chdir(work_dir)
-            param.write_options('rand.save', {'weights': weights},
+            param.write_options('rand#47#.save', {'weights': weights},
                 None, None)
 
             os.chdir(cur_dir)
@@ -1289,10 +1289,12 @@ def gen_array(opts):
             cur_dir = os.getcwd()
             work_dir = backup.expandpath(opts[KEYS.work_dir])
             os.chdir(work_dir)
-            file_name = 'rand.save'
+            file_name = 'rand#47#.save'
             if not os.path.exists(file_name):
                 raise Exception('Save file not found ' + file_name)
             save_data = param.parse_options(file_name, dict())
+            if isinstance(save_data, list):  # v2.0+
+                save_data = save_data[0]
             opts[KEYS.sim_weight_values] = save_data['weights']
 
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
