@@ -5,6 +5,7 @@ Created on Jun 19, 2015
 @author: Tyler P
 '''
 import sys, os
+import traceback
 from optparse import OptionParser
 import math
 import backup
@@ -920,11 +921,13 @@ def generate(opts):
                 cont = make_mdp(opts, name=mdp_in, genseed=num, lmcseed=num)
             except IOError as ioex:
                 print(ioex)
+                traceback.print_exc()
         else:
             try:
                 cont = make_mdp(opts, name=job_name + suffix)
             except IOError as ioex:
                 print(ioex)
+                traceback.print_exc()
 
         if not cont:
             return
@@ -1264,6 +1267,7 @@ def gen_rand(opts):
             os.chdir(cur_dir)
         except Exception as ex:
             print(ex)
+            traceback.print_exc()
             os.chdir(cur_dir)
             if not opts[KEYS._dryrun]:
                 return
@@ -1334,6 +1338,7 @@ def gen_array(opts):
             os.chdir(cur_dir)
         except Exception as ex:
             print(ex)
+            traceback.print_exc()
             os.chdir(cur_dir)
             if not opts[KEYS._dryrun]:
                 return
@@ -1382,6 +1387,7 @@ def sim_status(save_lib):
                     extra = scan.fail_statement
             except Exception as ex:
                 print(ex)
+                traceback.print_exc()
         else:
             status = "NOT STARTED"
         print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
