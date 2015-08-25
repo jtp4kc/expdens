@@ -1371,6 +1371,7 @@ def sim_status(save_lib):
         status = "STATUS UNKNOWN"
         extra = None
         warn = None
+        printshake = False
         shakecount = 0
         step = 0
         if os.path.exists(logfile):
@@ -1384,7 +1385,7 @@ def sim_status(save_lib):
                     for line in open(outfile, "r"):
                         if 'slurmstepd:' in line:
                             extra = line.replace("slurmstepd:", "")
-                        if 'Shake did not converge' in line:
+                        if 'Shake did not converge' in line and printshake:
                             shakecount += 1
                             warn = 'SHAKE experienced issues x{0}'.format(
                                 shakecount)
