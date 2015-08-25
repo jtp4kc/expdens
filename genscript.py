@@ -1476,6 +1476,8 @@ def setup(options, args, opts, parser, cur_dir, save_name):
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
             return False  # don't print save files
+        else:
+            print('Reading previous launch files from ' + options.save)
         save_path = os.path.realpath(save_name)
         save_lib = saver.parse_options(save_path)
         if isinstance(save_lib, list):
@@ -1575,7 +1577,6 @@ def main(argv=None):
 
     save_name = None
     if options.save:
-        print('Reading previous launch files from ' + options.save)
         save_name = options.save
 
     global SAVE_LIBRARY
