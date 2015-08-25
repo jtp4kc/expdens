@@ -1466,6 +1466,13 @@ def setup(options, args, opts, parser, cur_dir, save_name):
     opts[KEYS.subcommand] = subcommand
 
     if subcommand in POST_COMMANDS:
+        if 'status' in subcommand and save_name == None:
+            here = os.getcwd()
+            for dir_item in os.listdir(here):
+                item = os.path.join(here, dir_item);
+                if os.path.isfile(item) and item.endswith(".save"):
+                    save_name = dir_item
+                    break
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
             return False  # don't print save files
