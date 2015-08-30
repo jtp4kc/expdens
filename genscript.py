@@ -60,6 +60,8 @@ class MyKeys(Keys):
         self.sim_wgtxcoupled = 'sim-weight-x-coupled-states'
         self.sim_wgtxuncupld = 'sim-weight-x-uncoupled-states'
         self.sim_incrementor = 'sim-weight-incrementor'
+        self.sim_wl_scale = 'sim-weight-scale'
+        self.sim_wl_ratio = 'sim-weight-ratio'
         self.sim_init_lambda = 'sim-init-lambda'
         self.sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
         self.sim_use_gibbs = 'sim-use-gibbs-state-sampling'
@@ -87,7 +89,8 @@ class MyKeys(Keys):
             self.sim_temperature, self.sim_weights, self.sim_fixed_weights,
             self.sim_weight_values, self.sim_fep_values,
             self.sim_vdw_values, self.sim_coul_values,
-            self.sim_incrementor, self.sim_init_lambda,
+            self.sim_incrementor, self.sim_wl_scale,
+            self.sim_wl_ratio, self.sim_init_lambda,
             self.sim_fixed_lambda, self.sim_use_gibbs, self.sim_use_metro,
             self.sim_gibbs_delta, self.sim_nstout,
             self.sim_nst_mc, self.sim_temp_alg, self.sim_pressure,
@@ -181,6 +184,8 @@ def option_defaults():
     options[KEYS.sim_wgtxcoupled] = 0
     options[KEYS.sim_wgtxuncupld] = 0
     options[KEYS.sim_incrementor] = 1
+    options[KEYS.sim_wl_ratio] = 0.8
+    options[KEYS.sim_wl_scale] = 0.8
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
     options[KEYS.sim_use_gibbs] = False
@@ -791,9 +796,9 @@ lmc-seed                 = {lmc-seed}
         fields.update(self.fields_general)
         fields.update(self.fields_expdens)
         part = """; Seed for Monte Carlo in lambda space
-wl-scale                 = 0.5
-wl-ratio                 = 0.8
-init-wl-delta            = {incrementor:0.3f}
+wl-scale                 = {wl-scale:0.3f}
+wl-ratio                 = {wl-ratio:0.3f}
+init-wl-delta            = {wl-incr:0.3f}
 wl-oneovert              = yes
 """.format(**fields)
         return part
@@ -1213,7 +1218,9 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder.fields_expdens['lmc-seed'] = lmcseed
     builder.fields_expdens['gibbs-delta'] = int(opts[KEYS.sim_gibbs_delta])
     builder.fields_expdens['wl-weights'] = wl_weights
-    builder.fields_expdens['incrementor'] = opts[KEYS.sim_incrementor]
+    builder.fields_expdens['wl-incr'] = opts[KEYS.sim_incrementor]
+    builder.fields_expdens['wl-scale'] = opts[KEYS.sim_wl_scale]
+    builder.fields_expdens['wl-ratio'] = opts[KEYS.sim_wl_ratio]
 
     file_name = os.path.realpath(name + '.mdp')
     file_ = open(file_name, 'w')
