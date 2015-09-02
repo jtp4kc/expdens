@@ -59,6 +59,8 @@ class MyKeys(Keys):
         self.sim_wgtxcoupled = 'sim-weight-x-coupled-states'
         self.sim_wgtxuncupld = 'sim-weight-x-uncoupled-states'
         self.sim_incrementor = 'sim-weight-incrementor'
+        self.sim_wl_scale = 'sim-weight-scale'
+        self.sim_wl_ratio = 'sim-weight-ratio'
         self.sim_init_lambda = 'sim-init-lambda'
         self.sim_fixed_lambda = 'sim-init-lambda-only_no-expdens'
         self.sim_use_gibbs = 'sim-use-gibbs-state-sampling'
@@ -86,7 +88,8 @@ class MyKeys(Keys):
             self.sim_temperature, self.sim_weights, self.sim_fixed_weights,
             self.sim_weight_values, self.sim_fep_values,
             self.sim_vdw_values, self.sim_coul_values,
-            self.sim_incrementor, self.sim_init_lambda,
+            self.sim_incrementor, self.sim_wl_scale,
+            self.sim_wl_ratio, self.sim_init_lambda,
             self.sim_fixed_lambda, self.sim_use_gibbs, self.sim_use_metro,
             self.sim_gibbs_delta, self.sim_nstout,
             self.sim_nst_mc, self.sim_temp_alg, self.sim_pressure,
@@ -180,6 +183,8 @@ def option_defaults():
     options[KEYS.sim_wgtxcoupled] = 0
     options[KEYS.sim_wgtxuncupld] = 0
     options[KEYS.sim_incrementor] = 1
+    options[KEYS.sim_wl_ratio] = 0.8
+    options[KEYS.sim_wl_scale] = 0.8
     options[KEYS.sim_init_lambda] = -1  # last index
     options[KEYS.sim_fixed_lambda] = False
     options[KEYS.sim_use_gibbs] = False
@@ -305,7 +310,12 @@ class FileScan:
             count += 1
             if count == 2:
                 splt = line.split()
-                self.num_of_steps = int(splt[0])
+                if splt:
+                    try:
+                        self.num_of_steps = int(splt[0])
+                    except Exception as e:
+                        tb = sys.exc_info()[2]
+                        print(tb + ":" + str(e))
             if line.isspace():
                 capture_weights = False
             if capture_weights:
@@ -802,9 +812,9 @@ lmc-seed                 = {lmc-seed}
         fields.update(self.fields_general)
         fields.update(self.fields_expdens)
         part = """; Seed for Monte Carlo in lambda space
-wl-scale                 = 0.5
-wl-ratio                 = 0.8
-init-wl-delta            = {incrementor:0.3f}
+wl-scale                 = {wl-scale:0.3f}
+wl-ratio                 = {wl-ratio:0.3f}
+init-wl-delta            = {wl-incr:0.3f}
 wl-oneovert              = yes
 """.format(**fields)
         return part
@@ -1203,7 +1213,9 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     builder.fields_expdens['lmc-seed'] = lmcseed
     builder.fields_expdens['gibbs-delta'] = int(opts[KEYS.sim_gibbs_delta])
     builder.fields_expdens['wl-weights'] = wl_weights
-    builder.fields_expdens['incrementor'] = opts[KEYS.sim_incrementor]
+    builder.fields_expdens['wl-incr'] = opts[KEYS.sim_incrementor]
+    builder.fields_expdens['wl-scale'] = opts[KEYS.sim_wl_scale]
+    builder.fields_expdens['wl-ratio'] = opts[KEYS.sim_wl_ratio]
 
     file_name = os.path.realpath(name + '.mdp')
     file_ = open(file_name, 'w')
@@ -1360,6 +1372,9 @@ def sim_status(save_lib):
         logfile = os.path.join(folder, name + ".log")
         status = "STATUS UNKNOWN"
         extra = None
+        warn = None
+        printshake = False
+        shakecount = 0
         step = 0
         if os.path.exists(logfile):
             scan = FileScan(logfile)
@@ -1372,6 +1387,10 @@ def sim_status(save_lib):
                     for line in open(outfile, "r"):
                         if 'slurmstepd:' in line:
                             extra = line.replace("slurmstepd:", "")
+                        if 'Shake did not converge' in line and printshake:
+                            shakecount += 1
+                            warn = 'SHAKE experienced issues x{0}'.format(
+                                shakecount)
                         if ' fault' in line:
                             status = "FAULT"
                             extra = line
@@ -1388,8 +1407,12 @@ def sim_status(save_lib):
         else:
             status = "NOT STARTED"
         print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
+        if warn:
+            print ("\t" + warn)
         if extra:
-            print("\t" + extra.replace("\n", ""))
+            extras = extra.split("\n")
+            for ex in extras:
+                print("\t" + ex)
 
 def sim_submit(save_lib):
     submitted = False
@@ -1449,9 +1472,18 @@ def setup(options, args, opts, parser, cur_dir, save_name):
     opts[KEYS.subcommand] = subcommand
 
     if subcommand in POST_COMMANDS:
+        if 'status' in subcommand and save_name == None:
+            here = os.getcwd()
+            for dir_item in os.listdir(here):
+                item = os.path.join(here, dir_item);
+                if os.path.isfile(item) and item.endswith(".save"):
+                    save_name = dir_item
+                    break
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
             return False  # don't print save files
+        else:
+            print('Reading previous launch files from ' + save_name)
         save_path = os.path.realpath(save_name)
         save_lib = saver.parse_options(save_path)
         if isinstance(save_lib, list):
@@ -1551,7 +1583,6 @@ def main(argv=None):
 
     save_name = None
     if options.save:
-        print('Reading previous launch files from ' + options.save)
         save_name = options.save
 
     global SAVE_LIBRARY
