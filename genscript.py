@@ -14,7 +14,6 @@ from param_versions.version_2_0 import Keys
 
 verbose = 0
 SAVE_LIBRARY = {}
-# CANCEL_LIST = []
 POST_COMMANDS = []  #
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
@@ -237,9 +236,25 @@ saver.option_defaults = save_defaults
 #################################################################################
 #################################################################################
 
-class FileScan:
+class FilesystemImpactRegister:
 
-    TMPNAME = "FilescanTempFile.out.temp"
+    def __init__(self):
+        self.cwd = '.'
+        self.files_created = []
+        self.filename_bases = []
+        self.files_removed = []
+
+    def merge(self, other_FIR):
+        fir = FilesystemImpactRegister()
+        fir.files_created.extend(self.files_created)
+        fir.files_created.extend(other_FIR.files_created)
+        fir.filename_bases.extend(self.filename_bases)
+        fir.filename_bases.extend(other_FIR.filename_bases)
+        fir.files_removed.extend(self.files_removed)
+        fir.files_removed.extend(other_FIR.files_removed)
+        return fir
+
+class FileScan:
 
     def __init__(self, path):
         self.filepath = path
@@ -255,8 +270,9 @@ class FileScan:
     def scan(self):
         if not os.path.exists(self.filepath):
             raise Exception('Simulation file not found ' + self.filepath)
-        os.system('tail -500 {0} &>{1}'.format(self.filepath, FileScan.TMPNAME))
-        if not os.path.exists(FileScan.TMPNAME):
+        tmpname = os.tempnam()
+        os.system('tail -500 {0} &>{1}'.format(self.filepath, tmpname))
+        if not os.path.exists(tmpname):
             raise Exception('Tail command appears to have failed.')
 
         capture_fail = False
@@ -275,7 +291,7 @@ class FileScan:
             if 'Finished mdrun' in line:
                 self.finish_detected = True
             self.newscan.append(line)
-        os.remove(FileScan.TMPNAME)
+        os.remove(tmpname)
 
         # assume a short scan indicates the file was cut off
         #     which could get fooled by dumping the state matrix, but it's only
@@ -331,7 +347,7 @@ class SlurmGen:
     def walltime(self, ns, ntasks, nnodes):
         rate = 7.5 / 20  # 7.5 ns/day per 20 cores for double precicion
         if not self.double_precision:
-            rate *= 1.8  # assume 80% speedup for single precision
+            rate *= 1.7  # assume 70% speedup for single precision
         speed = rate * ntasks  # ns/day
         est = ns / speed  # days
         time_ = est * 1.20  # add 20% buffer
@@ -855,23 +871,27 @@ class BEPGen:
     def write(self, file_name):
         BEPGen.params.write_options(file_name, self.fields_output)
 
-def submit_slurm(slurm_file, job):
+def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
-    file_ = open("cancel.temp", "w")
+    unique = os.tempnam()
+    file_ = open(unique, "w")
     # os.system("sbatch " + file_name)
     subprocess.call(["sbatch", slurm_file], stdout=file_)
     file_.close()
-    file_ = open("cancel.temp", "r")
+    file_ = open(unique, "r")
     line = file_.readline().replace("\n", "")
     file_.close()
-    os.remove("cancel.temp")
+    os.remove(unique)
     num = line.split(" ")[-1]
-    print(line)
-    print("Sbatch'd Job " + job + " as job " + num)
+    if doprint:
+        print(line)
+        print("Sbatch'd Job " + job + " as job #" + num)
     return num
 
-def generate(opts):
-    global CANCEL_LIST
+def generate(opts, seedrand=None):
+    fir = FilesystemImpactRegister()
+    fir.cwd = os.getcwd()
+
     randseed = opts[KEYS.mdr_genseed]
     submit = opts[KEYS._submit]
     job_name = opts[KEYS.job_name]
@@ -882,7 +902,6 @@ def generate(opts):
     if not base_name:
         base_name = job_name
 
-    cur_dir = os.getcwd()
     dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
     if not os.path.exists(dir_):
         os.mkdir(dir_)
@@ -900,6 +919,11 @@ def generate(opts):
         if opts[KEYS.mdr_count] < 2:
             suffix = ''
 
+        folder = job_name + suffix
+        dir_name = os.path.join(path, folder)
+        if not os.path.exists(dir_name):
+            os.mkdir(dir_name)
+        os.chdir(folder)
         file_name = job_name + suffix + '.slurm'
         workdir = os.path.join(path, job_name + suffix, "")
         callingdir = opts[KEYS._calling_dir]
@@ -907,7 +931,6 @@ def generate(opts):
         gro_in = base_name + suffix
         mdp_in = job_name + suffix
         move_par = True
-        move_slurm = True
         move_gro = False
 
         cont = False
@@ -915,7 +938,8 @@ def generate(opts):
             gro_in = base_name
             try:
                 import random
-                # random.seed(0)
+                if seedrand != None:
+                    random.seed(seedrand)
                 seed = random.randint(0, 65536)
                 num = seed + i
                 cont = make_mdp(opts, name=mdp_in, genseed=num, lmcseed=num)
@@ -931,15 +955,6 @@ def generate(opts):
 
         if not cont:
             return
-
-        move = ""
-        if move_par:
-            move += ("mv " + dir_ + opts[KEYS._params_out] + " " +
-                opts[KEYS._params_out] + " \n")
-        if move_slurm:
-            move += "mv " + dir_ + file_name + " " + file_name + "\n"
-        if move_gro:
-            move += "mv " + indir + gro_in + "-in.gro " + gro_in + "-in.gro\n"
 
         extra = ""
         subcom = opts[KEYS.subcommand]
@@ -964,6 +979,13 @@ def generate(opts):
                     "python " + os.path.realpath(__file__) + " " + next_cmd +
                     " " + KEYS._chain_all + " --submit " + param_opt + "\n" +
                     "cd " + workdir + "\n")
+
+        move = ""
+        if move_par:
+            move += ("mv " + dir_ + opts[KEYS._params_out] + " " +
+                opts[KEYS._params_out] + " \n")
+        if move_gro:
+            move += "mv " + indir + gro_in + "-in.gro " + gro_in + "-in.gro\n"
 
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
@@ -992,14 +1014,6 @@ def generate(opts):
         file_.close()
 
         if submit:
-            folder = job_name + suffix
-            dir_name = os.path.join(path, folder)
-            if not os.path.exists(dir_name):
-                os.mkdir(dir_name)
-            # yes, this seems to be unnecessary, but it helps in debugging if
-            #    directory doesn't actually have to exist to run without submit
-            os.system("mv " + mdp_in + ".mdp " +
-                os.path.join(dir_name, mdp_in) + ".mdp")
             tpr_files.append(os.path.join(folder, job_name + ".tpr"))
             xtc_files.append(os.path.join(folder, job_name + ".xtc"))
             if move_gro:
@@ -1010,32 +1024,12 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 num = submit_slurm(file_name, job_name + suffix)
-#                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
-#                 CANCEL_LIST.append("scancel " + str(num))
-                global save_library
+                global SAVE_LIBRARY
                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
-#                 import subprocess
-#                 file_ = open("cancel.sh", "w")
-#                 # os.system("sbatch " + file_name)
-#                 subprocess.call(["sbatch", file_name], stdout=file_)
-#                 file_.close()
-#                 file_ = open("cancel.sh", "r")
-#                 line = file_.readline()
-#                 file_.close()
-#                 num = line.split(" ")[-1]
-#                 num = num.replace("\n", "")
-#                 print(line)
-#                 print("Sbatch'd Job " + job_name + suffix + " as job " + num)
-#                 CANCEL_LIST.append("# cancel job " + job_name + suffix)
-#                 CANCEL_LIST.append("scancel " + num)
-#
-#                 global save_library
-#                 jname = job_name + suffix
-#                 SAVE_LIBRARY[save_keys.jobs].append((jname, num))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
-        global save_library
+        global SAVE_LIBRARY
         jname = job_name + suffix
         SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
         SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
@@ -1087,7 +1081,8 @@ def generate(opts):
 
         SAVE_LIBRARY[save_keys.files].append(filepath)
 
-    os.chdir(cur_dir)
+    os.chdir(fir.cwd)
+    return fir
 
 def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     job_name = opts[KEYS.job_name]
@@ -1579,21 +1574,6 @@ def main(argv=None):
 
     if not do_output:
         return 0
-
-#     global CANCEL_LIST
-#     if CANCEL_LIST:
-#         dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
-#         if not os.path.exists(dir_):
-#             os.mkdir(dir_)
-#         os.chdir(dir_)
-#         # Create cancel file
-#         file_ = open("cancel.sh", "w")
-#         file_.write("#! /usr/bin/sh \n")
-#         for line in CANCEL_LIST:
-#             file_.write(line + "\n")
-#         file_.close()
-#         CANCEL_LIST = []
-#         os.chdir(cur_dir)
 
     if options.par:
         par_base = os.path.basename(options.par)
