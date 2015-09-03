@@ -293,6 +293,7 @@ class FileScan:
         subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
+        file_.file.seek(0)  # set file to beginning
         for line in file_.file:
             if capture_fail:
                 capture_fail = False
@@ -899,8 +900,8 @@ def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
     file_ = tempfile.NamedTemporaryFile(prefix='sbo', dir='.')
     subprocess.call(["sbatch", slurm_file], stdout=file_)
-    for line in file_.file:
-        break  # only want the first line
+    file_.file.seek(0)  # set file to beginning
+    line = file_.file.readline().replace("\n", "")
     file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
     if doprint:
