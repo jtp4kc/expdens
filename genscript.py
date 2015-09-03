@@ -1322,6 +1322,7 @@ def gen_array(opts):
             logscan = FileScan(file_name)
             logscan.scan()
             num_of_steps = logscan.get_step_number()
+            print("ns:" + str(num_of_steps))
             # num_frames = math.floor(num_of_steps / opts[KEYS.sim_nstout])
 
             base_name = opts[KEYS.base_name]
