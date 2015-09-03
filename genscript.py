@@ -923,11 +923,11 @@ def generate(opts):
     if not base_name:
         base_name = job_name
 
-    dir_ = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+    dir_ = os.path.join(backup.expandpath(opts[KEYS.work_dir]), "")
     if not os.path.exists(dir_):
         os.mkdir(dir_)
     os.chdir(dir_)
-    path = os.path.join(backup.expandpath(opts[KEYS.work_dir]), "")
+    path = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
 
     tpr_files = []
     xtc_files = []
@@ -944,7 +944,7 @@ def generate(opts):
         dir_name = os.path.join(path, folder)
         if not os.path.exists(dir_name):
             os.mkdir(dir_name)
-        os.chdir(folder)
+        os.chdir(dir_name)
         file_name = job_name + suffix + '.slurm'
         workdir = os.path.join(path, job_name + suffix, "")
         callingdir = opts[KEYS._calling_dir]
