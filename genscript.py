@@ -1322,7 +1322,7 @@ def gen_array(opts):
             logscan = FileScan(file_name)
             logscan.scan()
             num_of_steps = logscan.get_step_number()
-            print("ns:" + str(num_of_steps))
+            # print("ns:" + str(num_of_steps))
             # num_frames = math.floor(num_of_steps / opts[KEYS.sim_nstout])
 
             base_name = opts[KEYS.base_name]
@@ -1340,7 +1340,7 @@ def gen_array(opts):
                 spacing = 1  # will only be multiplied by 0
             else:
                 spacing = num_of_steps / segments
-                print("spac:" + str(spacing))
+                # print("spac:" + str(spacing))
 
             if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
                 os.environ['GMXBIN'] not in os.environ['PATH']):
@@ -1351,7 +1351,7 @@ def gen_array(opts):
                 suffix = '_{0:0>2}'.format(i)
                 step_num = math.floor(i * spacing)  # evenly spaced frames
                 timeps = step_num * opts[KEYS.sim_dt]
-                print("ps:" + str(timeps))
+                # print("ps:" + str(timeps))
                 modif = 0.5 * opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]
                 tb = timeps - modif
                 te = timeps + modif
