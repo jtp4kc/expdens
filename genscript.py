@@ -293,9 +293,8 @@ class FileScan:
         subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
-        print(file_.file.tell())
-        print(file_.file.read())
-        for line in file_.file:
+        file_.seek(0)  # reset to be able to read
+        for line in file_:
             if capture_fail:
                 capture_fail = False
                 self.fail_statement = line
@@ -901,8 +900,8 @@ def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
     file_ = tempfile.NamedTemporaryFile(prefix='sbo', dir='.')
     subprocess.call(["sbatch", slurm_file], stdout=file_)
-    file_.file.seek(0)  # set file to beginning
-    line = file_.file.readline().replace("\n", "")
+    file_.seek(0)  # reset to be able to read
+    line = file_.readline().replace("\n", "")
     file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
     if doprint:
