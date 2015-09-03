@@ -47,6 +47,7 @@ class MyKeys(Keys):
         # Sim Options
         self.sim_use_mpi = "sim-use-mpi-parallelization"
         self.sim_time = 'sim-time-ns'
+        self.sim_dt = 'sim-time-step'
         self.sim_temperature = "sim-temperature"
         self.sim_weights = 'sim-initial-weights'
         self.sim_fixed_weights = 'sim-fixed-weights'
@@ -84,7 +85,7 @@ class MyKeys(Keys):
             " states by subtracting ln(x) from all but the beginning state"))
         self.add_key(self.sim_wgtxuncupld, section, ("Emulate these number of" +
             " states by adding ln(x) to just the end state"))
-        self.add_keys(section, self.sim_use_mpi, self.sim_time,
+        self.add_keys(section, self.sim_use_mpi, self.sim_time, self.sim_dt,
             self.sim_temperature, self.sim_weights, self.sim_fixed_weights,
             self.sim_weight_values, self.sim_fep_values,
             self.sim_vdw_values, self.sim_coul_values,
@@ -167,6 +168,7 @@ def option_defaults():
     options[KEYS.sim_gromacs5] = False
     options[KEYS.sim_use_mpi] = False
     options[KEYS.sim_time] = 0.2  # ns
+    options[KEYS.sim_dt] = 0.002  # ps
     options[KEYS.sim_temperature] = 300.0  # K
     options[KEYS.sim_weights] = False
     options[KEYS.sim_fixed_weights] = False
@@ -1179,7 +1181,8 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     elif init_lambda > 1:
         init_lambda = 1
 
-    steps = opts[KEYS.sim_time] * (1000 / 0.002)
+    dt = opts[KEYS.sim_dt]
+    steps = opts[KEYS.sim_time] * (1000 / dt)
     opts[KEYS._expected_frames] = math.ceil(steps / opts[KEYS.sim_nstout])
 
     builder = MDPGen()
@@ -1198,7 +1201,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         builder.set_precision("single")
     builder.fields_general['nstout'] = opts[KEYS.sim_nstout]
     builder.fields_general['temp'] = opts[KEYS.sim_temperature]
-    builder.fields_params['dt'] = 0.002;  # ps
+    builder.fields_params['dt'] = dt;  # ps
     builder.fields_params['time-ns'] = opts[KEYS.sim_time]
     builder.fields_velocities['gen-seed'] = genseed
     builder.fields_coupling['temp-alg'] = opts[KEYS.sim_temp_alg]
@@ -1321,7 +1324,7 @@ def gen_array(opts):
                 raise Exception('Simulation files not found ' + xtc_name +
                     ' and/or ' + tpr_name)
             cmnd = ('echo "System" | trjconv_d -f {xtc} -s {tpr} -o {gro}' +
-                ' -b {frame} -e {frame} &>../trjconv{index}.log')
+                ' -b {time} -e {time} &>../trjconv{index}.log')
             segments = (opts[KEYS.mdr_count] - 1)
             if segments == 0:
                 spacing = 1  # will only be multiplied by 0
@@ -1336,9 +1339,10 @@ def gen_array(opts):
             for i in range(opts[KEYS.mdr_count]):
                 suffix = '_{0:0>2}'.format(i)
                 frame_num = math.floor(i * spacing)  # evenly spaced frames
+                timeps = frame_num * opts[KEYS.sim_dt]
                 gro_name = '../' + base_name + suffix + '-in.gro'
                 fmt = cmnd.format(xtc=xtc_name, tpr=tpr_name, gro=gro_name,
-                    frame=frame_num, index=suffix)
+                    time=timeps, index=suffix)
                 os.system(fmt)
                 if not os.path.exists(gro_name):
                     raise Exception('Extraction of starting frames' +
