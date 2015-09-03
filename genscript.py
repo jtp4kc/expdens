@@ -344,7 +344,7 @@ class FileScan:
     def get_wanglandau_weights(self):
         return self.weights
 
-    def get_frame_number(self):
+    def get_step_number(self):
         return self.num_of_steps
 
 class SlurmGen:
@@ -1321,8 +1321,8 @@ def gen_array(opts):
 
             logscan = FileScan(file_name)
             logscan.scan()
-            num_of_steps = logscan.get_frame_number()
-            num_frames = math.floor(num_of_steps / opts[KEYS.sim_nstout])
+            num_of_steps = logscan.get_step_number()
+            # num_frames = math.floor(num_of_steps / opts[KEYS.sim_nstout])
 
             base_name = opts[KEYS.base_name]
             if not base_name:
@@ -1338,7 +1338,7 @@ def gen_array(opts):
             if segments == 0:
                 spacing = 1  # will only be multiplied by 0
             else:
-                spacing = num_frames / segments
+                spacing = num_of_steps / segments
 
             if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
                 os.environ['GMXBIN'] not in os.environ['PATH']):
@@ -1347,8 +1347,8 @@ def gen_array(opts):
 
             for i in range(opts[KEYS.mdr_count]):
                 suffix = '_{0:0>2}'.format(i)
-                frame_num = math.floor(i * spacing)  # evenly spaced frames
-                timeps = frame_num * opts[KEYS.sim_dt]
+                step_num = math.floor(i * spacing)  # evenly spaced frames
+                timeps = step_num * opts[KEYS.sim_dt]
                 gro_name = '../' + base_name + suffix + '-in.gro'
                 fmt = cmnd.format(xtc=xtc_name, tpr=tpr_name, gro=gro_name,
                     time=timeps, index=suffix)
@@ -1393,7 +1393,7 @@ def sim_status(save_lib):
             scan = FileScan(logfile)
             try:
                 scan.scan()
-                step = scan.get_frame_number()
+                step = scan.get_step_number()
                 status = "IN PROGRESS"
                 outfile = os.path.join(folder, name + ".out")
                 if os.path.exists(outfile):
