@@ -1333,25 +1333,30 @@ def gen_array(opts):
                 raise Exception('Simulation files not found ' + xtc_name +
                     ' and/or ' + tpr_name)
             cmnd = ('echo "System" | trjconv_d -f {xtc} -s {tpr} -o {gro}' +
-                ' -b {time} -e {time} &>../trjconv{index}.log')
+                ' -b {timeb} -e {timee} &>../trjconv{index}.log')
             segments = (opts[KEYS.mdr_count] - 1)
             if segments == 0:
                 spacing = 1  # will only be multiplied by 0
             else:
                 spacing = num_of_steps / segments
+                print("spac:" + str(spacing))
 
             if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
                 os.environ['GMXBIN'] not in os.environ['PATH']):
                 print('Adding GMXBIN to PATH...')
                 os.environ['PATH'] = os.environ['PATH'] + ':' + os.environ['GMXBIN']
 
-            for i in range(opts[KEYS.mdr_count]):
+            for i in range(segments + 1):
                 suffix = '_{0:0>2}'.format(i)
                 step_num = math.floor(i * spacing)  # evenly spaced frames
                 timeps = step_num * opts[KEYS.sim_dt]
+                print("ps:" + st(timeps))
+                modif = 0.5 * opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]
+                tb = timeps - modif
+                te = timeps + modif
                 gro_name = '../' + base_name + suffix + '-in.gro'
                 fmt = cmnd.format(xtc=xtc_name, tpr=tpr_name, gro=gro_name,
-                    time=timeps, index=suffix)
+                    timeb=tb, timee=te, index=suffix)
                 os.system(fmt)
                 if not os.path.exists(gro_name):
                     raise Exception('Extraction of starting frames' +
