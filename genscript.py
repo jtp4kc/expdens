@@ -37,12 +37,20 @@ class MyKeys(Keys):
         self._calling_dir = '_calling-dir'  # private
         self.work_dir = 'sim-dir'
         self.script_dir = 'scripts-dir'
+        self.input_dir = 'input-file-dir'
         self.ligand = 'ligand-res-name'
 
         section = "General"
-        self.add_key(self.base_name, section, 'Name to prefix all files')
-        self.add_keys(section, self.job_name, self.work_dir, self.script_dir,
-                      self.ligand)
+        self.add_key(self.base_name, section, "Input file prefix")
+        self.add_key(self.job_name, section, "Name to prefix all files")
+        self.add_key(self.work_dir, section, "Directory to operate within," +
+            " and create save files. Should generally be the same as " +
+            self.script_dir)
+        self.add_key(self.script_dir, section, "Directory to create scripts" +
+            " and script folders within")
+        self.add_key(self.input_dir, section, "Location of input files (.top," +
+            " .ndx, -in.gro)")
+        self.add_keys(section, self.ligand)
         ################################################
         # Sim Options
         self.sim_use_mpi = "sim-use-mpi-parallelization"
@@ -101,12 +109,13 @@ class MyKeys(Keys):
         self.mdr_threads = 'mdr-number-of-threads'
         self.mdr_queue_time = 'mdr-queue-time'
         self.mdr_genseed = 'mdr-generate-seeds'
+        self.mdr_seedrand = 'mdr-seed-for-random'
         self._expected_frames = "mdr-expected-number-of-frames"
 
         section = "mdrun Array"
         self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
-            self.mdr_genseed)
+            self.mdr_genseed, self.mdr_seedrand)
         ################################################
         # Automation
         self.auto_time_equil = 'auto-equil-time-ns'
@@ -203,6 +212,7 @@ def option_defaults():
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
     options[KEYS.mdr_genseed] = False
+    options[KEYS.mdr_seedrand] = None
     ################################################
     # Automation
     options[KEYS.auto_time_equil] = 0.2  # ns
@@ -900,7 +910,7 @@ def submit_slurm(slurm_file, job, doprint=True):
         print("Sbatch'd Job " + job + " as job #" + num)
     return num
 
-def generate(opts, seedrand=None):
+def generate(opts):
     fir = FilesystemImpactRegister()
     fir.cwd = os.getcwd()
 
@@ -950,8 +960,8 @@ def generate(opts, seedrand=None):
             gro_in = base_name
             try:
                 import random
-                if seedrand != None:
-                    random.seed(seedrand)
+                if opts[KEYS.seedrand] != None:
+                    random.seed(opts[KEYS.seedrand])
                 seed = random.randint(0, 65536)
                 num = seed + i
                 cont = make_mdp(opts, name=mdp_in, genseed=num, lmcseed=num)
@@ -1474,6 +1484,10 @@ def setup(options, args, opts, parser, cur_dir, save_name):
     if options.slurm:
         opts[KEYS.run_array] = options.slurm
     opts[KEYS.subcommand] = subcommand
+
+    if opts[KEYS.mdr_seedrand] == None:
+        import random
+        opts[KEYS.mdr_seedrand] = random.randint(0, 65536)
 
     if subcommand in POST_COMMANDS:
         if 'status' in subcommand and save_name == None:
