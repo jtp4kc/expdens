@@ -293,9 +293,7 @@ class FileScan:
         subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
-        lc = 0
-        for line in file_:
-            lc += 1
+        for line in file_.file:
             if capture_fail:
                 capture_fail = False
                 self.fail_statement = line
@@ -311,7 +309,7 @@ class FileScan:
                 self.finish_detected = True
             self.newscan.append(line)
         file_.close()
-        if lc < 1:
+        if not (self.newscan or self.oldscan):
             raise Exception('Tail command appears to have failed.')
 
         # assume a short scan indicates the file was cut off
@@ -901,7 +899,7 @@ def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
     file_ = tempfile.NamedTemporaryFile(prefix='sbo', dir='.')
     subprocess.call(["sbatch", slurm_file], stdout=file_)
-    for line in file_:
+    for line in file_.file:
         break  # only want the first line
     file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
