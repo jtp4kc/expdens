@@ -5,6 +5,7 @@ Created on Jun 19, 2015
 @author: Tyler P
 '''
 import sys, os
+import tempfile
 import traceback
 from optparse import OptionParser
 import math
@@ -287,13 +288,14 @@ class FileScan:
     def scan(self):
         if not os.path.exists(self.filepath):
             raise Exception('Simulation file not found ' + self.filepath)
-        tmpname = os.tempnam()
-        os.system('tail -500 {0} &>{1}'.format(self.filepath, tmpname))
-        if not os.path.exists(tmpname):
-            raise Exception('Tail command appears to have failed.')
+        import subprocess
+        file_ = tempfile.NamedTemporaryFile(prefix='fso', dir='.')
+        subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
-        for line in open(FileScan.TMPNAME):
+        lc = 0
+        for line in file_:
+            lc += 1
             if capture_fail:
                 capture_fail = False
                 self.fail_statement = line
@@ -308,7 +310,9 @@ class FileScan:
             if 'Finished mdrun' in line:
                 self.finish_detected = True
             self.newscan.append(line)
-        os.remove(tmpname)
+        file_.close()
+        if lc < 1:
+            raise Exception('Tail command appears to have failed.')
 
         # assume a short scan indicates the file was cut off
         #     which could get fooled by dumping the state matrix, but it's only
@@ -895,15 +899,11 @@ class BEPGen:
 
 def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
-    unique = os.tempnam()
-    file_ = open(unique, "w")
-    # os.system("sbatch " + file_name)
+    file_ = tempfile.NamedTemporaryFile(prefix='sbo', dir='.')
     subprocess.call(["sbatch", slurm_file], stdout=file_)
-    file_.close()
-    file_ = open(unique, "r")
-    line = file_.readline().replace("\n", "")
-    file_.close()
-    os.remove(unique)
+    for line in file_:
+        break  # only want the first line
+    file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
     if doprint:
         print(line)
