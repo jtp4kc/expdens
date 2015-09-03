@@ -1350,7 +1350,7 @@ def gen_array(opts):
                 suffix = '_{0:0>2}'.format(i)
                 step_num = math.floor(i * spacing)  # evenly spaced frames
                 timeps = step_num * opts[KEYS.sim_dt]
-                print("ps:" + st(timeps))
+                print("ps:" + str(timeps))
                 modif = 0.5 * opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]
                 tb = timeps - modif
                 te = timeps + modif
