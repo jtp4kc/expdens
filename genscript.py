@@ -293,6 +293,7 @@ class FileScan:
         subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
+        print(file_.file)
         file_.file.seek(0)  # set file to beginning
         for line in file_.file:
             if capture_fail:
