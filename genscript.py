@@ -289,7 +289,7 @@ class FileScan:
         if not os.path.exists(self.filepath):
             raise Exception('Simulation file not found ' + self.filepath)
         import subprocess
-        file_ = tempfile.NamedTemporaryFile(prefix='fso', dir='.')
+        file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='fso', dir='.')
         subprocess.call(["tail", "-500", self.filepath], stdout=file_)
 
         capture_fail = False
@@ -898,7 +898,7 @@ class BEPGen:
 
 def submit_slurm(slurm_file, job, doprint=True):
     import subprocess
-    file_ = tempfile.NamedTemporaryFile(prefix='sbo', dir='.')
+    file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
     subprocess.call(["sbatch", slurm_file], stdout=file_)
     file_.seek(0)  # reset to be able to read
     line = file_.readline().replace("\n", "")
