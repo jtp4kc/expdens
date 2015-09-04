@@ -730,6 +730,8 @@ class MakeSLURM:
 
     def get_text(self):
         return self.get_header() + """
+module load gromacs-jtp4kc
+        
 #################################
 # ENERGY MINIMIZATION 1: STEEP  #
 #################################
