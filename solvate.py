@@ -679,7 +679,7 @@ gen_vel                  = no
 
 class MakeSLURM:
 
-    def __init__(self, job_name, suffix, workdir, ntasks=2):
+    def __init__(self, job_name, suffix, workdir, ntasks=4):
         self.input_gro = "meth.gro"
         self.double_precision = True
         self.use_mpi = False
