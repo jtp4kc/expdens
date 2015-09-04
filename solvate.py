@@ -792,7 +792,7 @@ echo "Ending. Job completed for lambda = {lam}"
         _d = ""
         if self.double_precision:
             _d = "_d"
-        return get_text(self).format(_d=_d, gro=gro, top=top, lam=lam)
+        return self.get_text(self).format(_d=_d, gro=gro, top=top, lam=lam)
 
 def format_lam(lambda_):
     lam = "{0:0.2f}".format(lambda_)
