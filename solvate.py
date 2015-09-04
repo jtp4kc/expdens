@@ -690,8 +690,9 @@ class MakeSLURM:
         self.fields_general['job-name'] = job_name
         self.fields_general['suffix'] = suffix
         self.fields_general['ntasks'] = ntasks
-        self.fields_general['workdir'] = workdir
-        self.fields_header['outputfile'] = os.path.join(workdir, job_name)
+        self.fields_general['workdir'] = os.path.realpath(workdir)
+        self.fields_header['outputfile'] = os.path.realpath(
+            os.path.join(workdir, job_name))
 
     def walltime(self):
         return '{0}-{1:02}:{2:02}:{3:02}'.format(0, 12, 0, 0)
@@ -832,7 +833,7 @@ def launch():
         if not os.path.exists(folder):
             os.mkdir(folder)
         os.chdir(folder)
-        slurm = MakeSLURM(jobname, "_" + lam, "")
+        slurm = MakeSLURM(jobname, "_" + lam, ".")
         outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
             topfile), lam)
         output("em_steep.mdp", em_steep_mdp(lam, fol))
