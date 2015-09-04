@@ -809,7 +809,7 @@ def format_fol(foreign):
 
 def output(name, string):
     out = open(name, "w")
-    open.write(string)
+    out.write(string)
     out.close()
 
 def launch():
