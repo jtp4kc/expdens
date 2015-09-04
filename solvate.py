@@ -796,8 +796,11 @@ echo "Ending. Job completed for lambda = {lam}"
 
 def format_lam(lambda_):
     lam = "{0:0.2f}".format(lambda_)
-    while (lam.endswith("0") or lam.endswith(".")):
+    while (lam.endswith("0")):
         lam = lam[0:-1]
+        if lam.endswith("."):
+            lam = lam[0:-1]
+            break
     return lam
 
 def format_fol(foreign):
@@ -827,13 +830,14 @@ def launch():
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "_" + lam, ".")
+        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
+            topfile), lam)
         output("em_steep.mdp", em_steep_mdp(lam, fol))
         output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol))
         output("nvt.mdp", nvt_mdp(lam, fol))
         output("npt.mdp", npt_mdp(lam, fol))
         output("md.mdp", md_mdp(lam, fol))
-        output("job.slurm", slurm.compile(os.path.join("..", grofile),
-            os.path.join("..", topfile), lam))
+        output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
 
