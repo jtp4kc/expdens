@@ -729,7 +729,7 @@ class MakeSLURM:
         return self.header
 
     def get_text(self):
-        return self.get_header() + """
+        return self.get_header(self) + """
 #################################
 # ENERGY MINIMIZATION 1: STEEP  #
 #################################
