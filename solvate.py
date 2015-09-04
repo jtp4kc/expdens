@@ -546,18 +546,18 @@ class MakeMDP:
         pass
 
     def compile(self):
-        text = self.run_control()
-        text += self.em_criteria()
-        text += self.output_control()
-        text += self.neighborsearching()
-        text += self.electrostatics()
-        text += self.vanderWaals()
-        text += self.corrections()
-        text += self.pme_pppm()
-        text += self.coupling()
-        text += self.free_energy()
-        text += self.velocities()
-        text += self.bond_constraints()
+        text = self.run_control(self)
+        text += self.em_criteria(self)
+        text += self.output_control(self)
+        text += self.neighborsearching(self)
+        text += self.electrostatics(self)
+        text += self.vanderWaals(self)
+        text += self.corrections(self)
+        text += self.pme_pppm(self)
+        text += self.coupling(self)
+        text += self.free_energy(self)
+        text += self.velocities(self)
+        text += self.bond_constraints(self)
         return text
 
     def run_control(self):
@@ -792,7 +792,7 @@ echo "Ending. Job completed for lambda = {lam}"
         _d = ""
         if self.double_precision:
             _d = "_d"
-        return get_text().format(_d=_d, gro=gro, top=top, lam=lam)
+        return get_text(self).format(_d=_d, gro=gro, top=top, lam=lam)
 
 def format_lam(lambda_):
     lam = "{0:0.2f}".format(lambda_)
