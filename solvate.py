@@ -742,7 +742,7 @@ echo "Starting minimization for lambda = $LAMBDA..."
 # Iterative calls to grompp and mdrun to run the simulations
 
 grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
-mdrun{_d} -nt 2 -deffnm mins
+mdrun{_d} -nt 4 -deffnm mins
 
 
 #################################
@@ -761,7 +761,7 @@ echo "Minimization complete."
 echo "Starting constant volume equilibration..."
 
 grompp{_d} -f nvt.mdp -c minl.gro -p {top} -o nvt.tpr
-mdrun{_d} -nt 2 -deffnm nvt
+mdrun{_d} -nt 4 -deffnm nvt
 
 echo "Constant volume equilibration complete."
 
@@ -772,7 +772,7 @@ echo "Constant volume equilibration complete."
 echo "Starting constant pressure equilibration..."
 
 grompp{_d} -f npt.mdp -c nvt.gro -p {top} -t nvt.cpt -o npt.tpr
-mdrun{_d} -nt 2 -deffnm npt
+mdrun{_d} -nt 4 -deffnm npt
 
 echo "Constant pressure equilibration complete."
 
@@ -783,7 +783,7 @@ echo "Constant pressure equilibration complete."
 echo "Starting production MD simulation..."
 
 grompp{_d} -f md.mdp -c npt.gro -p {top} -t npt.cpt -o md.tpr
-mdrun{_d} -nt 2 -deffnm md
+mdrun{_d} -nt 4 -deffnm md
 
 echo "Production MD complete."
 
