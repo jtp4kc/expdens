@@ -730,6 +730,7 @@ class MakeSLURM:
 
     def get_text(self):
         return self.get_header() + """
+module load jtp4kc
 module load gromacs-jtp4kc
         
 #################################
@@ -831,7 +832,7 @@ def launch():
         if not os.path.exists(folder):
             os.mkdir(folder)
         os.chdir(folder)
-        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        slurm = MakeSLURM(jobname, "_" + lam, "")
         outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
             topfile), lam)
         output("em_steep.mdp", em_steep_mdp(lam, fol))
