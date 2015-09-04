@@ -872,7 +872,7 @@ USAGE
         parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
         parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='+')
+        parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='*')
 
         # Process arguments
         args = parser.parse_args()
@@ -896,6 +896,9 @@ USAGE
         for inpath in paths:
             ### do something with inpath ###
             print(inpath)
+
+        launch()
+
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
