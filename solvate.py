@@ -742,8 +742,7 @@ echo "Starting minimization for lambda = $LAMBDA..."
 # Iterative calls to grompp and mdrun to run the simulations
 
 grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
-
-mdrun{_d} -nt 2 -deffnm min
+mdrun{_d} -nt 2 -deffnm mins
 
 
 #################################
