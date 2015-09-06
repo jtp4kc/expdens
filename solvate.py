@@ -17,7 +17,7 @@ import os
 import math
 
 from argparse import ArgumentParser
-from argparse import RawDescriptionHelpFormatters
+# from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
 __version__ = 0.1
@@ -921,7 +921,7 @@ USAGE
 
     try:
         # Setup argument parser
-        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser = ArgumentParser(description=program_license)  # , formatter_class=RawDescriptionHelpFormatter)
         parser.add_argument("-r", "--recursive", dest="recurse", action="store_true", help="recurse into subfolders [default: %(default)s]")
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
         parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
