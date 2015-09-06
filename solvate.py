@@ -857,13 +857,13 @@ def launch2():
         foreign = [lambda_ - dc, lambda_ + dc]
         lam = format_lam(lambda_)
         fol = format_fol(foreign)
-        folder = jobname + "_" + lam
+        folder = jobname + "C" + lam
         if not os.path.exists(folder):
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "_" + lam, ".")
-        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
-            topfile), lam)
+        outtext = slurm.compile(os.path.join("..", grofile),
+            os.path.join("..", topfile), lam)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
         output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
         output("nvt.mdp", nvt_mdp(lam, fol, mol, coul1, coul2))
