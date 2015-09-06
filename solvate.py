@@ -861,7 +861,7 @@ def launch2():
         if not os.path.exists(folder):
             os.mkdir(folder)
         os.chdir(folder)
-        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        slurm = MakeSLURM(jobname, "C" + lam, ".")
         outtext = slurm.compile(os.path.join("..", grofile),
             os.path.join("..", topfile), lam)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
