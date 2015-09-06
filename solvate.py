@@ -200,7 +200,7 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol, mol=mol)
+""".format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
 def em_lbfgs_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
@@ -262,7 +262,7 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol, mol=mol)
+""".format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
 def nvt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
@@ -335,7 +335,7 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol, mol=mol)
+""".format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
 def npt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
@@ -407,7 +407,7 @@ constraint-algorithm     = lincs
 continuation             = yes 
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol, mol=mol)
+""".format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
 def md_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
@@ -479,7 +479,7 @@ constraint-algorithm     = lincs
 continuation             = yes 
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol, mol=mol)
+""".format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
 class MakeMDP:
 
