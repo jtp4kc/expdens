@@ -17,8 +17,7 @@ import os
 import math
 
 from argparse import ArgumentParser
-from argparse import RawDescriptionHelpFormatter
-from openpyxl.reader.strings import get_text
+from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
 __version__ = 0.1
@@ -142,7 +141,7 @@ echo "Production MD complete."
 echo "Ending. Job completed for lambda = $LAMBDA"
 """
 
-def em_steep_mdp(lam="0.0", fol="0.05"):
+def em_steep_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = steep 
 nsteps                   = 5000
@@ -186,9 +185,9 @@ foreign_lambda           = {fol}
 sc-alpha                 = 0.5
 sc-power                 = 1.0
 sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-moltype           = {mol}  ; name of moleculetype to decouple
+couple-lambda0           = {cp1}      ; only van der Waals interactions
+couple-lambda1           = {cp2}     ; turn off everything, in this case only vdW
 couple-intramol          = no
 nstdhdl                  = 10
 ; Generate velocities to start
@@ -201,9 +200,9 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol)
+""".format(lam=lam, fol=fol, mol=mol)
 
-def em_lbfgs_mdp(lam="0.0", fol="0.05"):
+def em_lbfgs_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = l-bfgs
 nsteps                   = 5000
@@ -248,9 +247,9 @@ foreign_lambda           = {fol}
 sc-alpha                 = 0.5
 sc-power                 = 1.0
 sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-moltype           = {mol}  ; name of moleculetype to decouple
+couple-lambda0           = {cp1}      ; only van der Waals interactions
+couple-lambda1           = {cp2}     ; turn off everything, in this case only vdW
 couple-intramol          = no
 nstdhdl                  = 10
 ; Generate velocities to start
@@ -263,9 +262,9 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol)
+""".format(lam=lam, fol=fol, mol=mol)
 
-def nvt_mdp(lam="0.0", fol="0.05"):
+def nvt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = sd       ; Langevin dynamics
 tinit                    = 0
@@ -319,9 +318,9 @@ foreign_lambda           = {fol}
 sc-alpha                 = 0.5
 sc-power                 = 1.0
 sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-moltype           = {mol}  ; name of moleculetype to decouple
+couple-lambda0           = {cp1}      ; only van der Waals interactions
+couple-lambda1           = {cp2}     ; turn off everything, in this case only vdW
 couple-intramol          = no
 nstdhdl                  = 10
 ; Generate velocities to start
@@ -336,9 +335,9 @@ constraint-algorithm     = lincs
 continuation             = no
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol)
+""".format(lam=lam, fol=fol, mol=mol)
 
-def npt_mdp(lam="0.0", fol="0.05"):
+def npt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = sd       ; Langevin dynamics
 tinit                    = 0
@@ -392,9 +391,9 @@ foreign_lambda           = {fol}
 sc-alpha                 = 0.5
 sc-power                 = 1.0
 sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-moltype           = {mol}  ; name of moleculetype to decouple
+couple-lambda0           = {cp1}      ; only van der Waals interactions
+couple-lambda1           = {cp2}     ; turn off everything, in this case only vdW
 couple-intramol          = no
 nstdhdl                  = 10
 ; Do not generate velocities
@@ -408,9 +407,9 @@ constraint-algorithm     = lincs
 continuation             = yes 
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol)
+""".format(lam=lam, fol=fol, mol=mol)
 
-def md_mdp(lam="0.0", fol="0.05"):
+def md_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = sd       ; Langevin dynamics
 tinit                    = 0
@@ -464,9 +463,9 @@ foreign_lambda           = {fol}
 sc-alpha                 = 0.5
 sc-power                 = 1.0
 sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-moltype           = {mol}  ; name of moleculetype to decouple
+couple-lambda0           = {cp1}      ; only van der Waals interactions
+couple-lambda1           = {cp2}     ; turn off everything, in this case only vdW
 couple-intramol          = no
 nstdhdl                  = 10
 ; Do not generate velocities
@@ -480,7 +479,7 @@ constraint-algorithm     = lincs
 continuation             = yes 
 ; Highest order in the expansion of the constraint coupling matrix
 lincs-order              = 12
-""".format(lam=lam, fol=fol)
+""".format(lam=lam, fol=fol, mol=mol)
 
 class MakeMDP:
 
@@ -680,7 +679,6 @@ gen_vel                  = no
 class MakeSLURM:
 
     def __init__(self, job_name, suffix, workdir, ntasks=4):
-        self.input_gro = "meth.gro"
         self.double_precision = True
         self.use_mpi = False
         self.gromacs5 = False
@@ -840,6 +838,56 @@ def launch():
         output("nvt.mdp", nvt_mdp(lam, fol))
         output("npt.mdp", npt_mdp(lam, fol))
         output("md.mdp", md_mdp(lam, fol))
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+
+def launch2():
+    jobname = "1methsolv"
+    topfile = "1meth.top"
+    grofile = "1meth.gro"
+    mol = "TMP"
+    coul1 = "vdw-q"
+    coul2 = "vdw"
+    dc = 0.25
+    dl = 0.05
+    coulomb = [dc * x for x in range(0, int(1.0 / dc) + 1)]
+    schedule = [dl * x for x in range(0, int(1.0 / dl) + 1)]
+    for lambda_ in coulomb:
+        foreign = [lambda_ - dc, lambda_ + dc]
+        lam = format_lam(lambda_)
+        fol = format_fol(foreign)
+        folder = jobname + "_" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
+            topfile), lam)
+        output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
+        output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
+        output("nvt.mdp", nvt_mdp(lam, fol, mol, coul1, coul2))
+        output("npt.mdp", npt_mdp(lam, fol, mol, coul1, coul2))
+        output("md.mdp", md_mdp(lam, fol, mol, coul1, coul2))
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+    for lambda_ in schedule:
+        foreign = [lambda_ - dl, lambda_ + dl]
+        lam = format_lam(lambda_)
+        fol = format_fol(foreign)
+        folder = jobname + "_" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
+            topfile), lam)
+        output("em_steep.mdp", em_steep_mdp(lam, fol, mol))
+        output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol))
+        output("nvt.mdp", nvt_mdp(lam, fol, mol))
+        output("npt.mdp", npt_mdp(lam, fol, mol))
+        output("md.mdp", md_mdp(lam, fol, mol))
         output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
