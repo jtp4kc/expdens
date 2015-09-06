@@ -952,7 +952,7 @@ USAGE
             ### do something with inpath ###
             print(inpath)
 
-        launch()
+        launch2()
 
         return 0
     except KeyboardInterrupt:
