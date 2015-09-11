@@ -24,7 +24,7 @@ __date__ = '2015-09-10'
 __updated__ = '2015-09-10'
 
 DEBUG = 0
-TESTRUN = 1
+TESTRUN = 0
 PROFILE = 0
 
 class CLIError(Exception):
