@@ -233,23 +233,21 @@ class Atom():
         if self.loc:
             d = self.position_precision
             n = self.position_precision + 5
-            frmt += ("{4:" + str(n) + ".0" + str(d) + "}")
-            frmt += ("{5:" + str(n) + ".0" + str(d) + "}")
-            frmt += ("{6:" + str(n) + ".0" + str(d) + "}")
-            print(frmt)
+            frmt += ("{4:" + str(n) + "." + str(d) + "f}")
+            frmt += ("{5:" + str(n) + "." + str(d) + "f}")
+            frmt += ("{6:" + str(n) + "." + str(d) + "f}")
             if self.velocity:
                 d = self.velocity_precision
                 n = self.velocity_precision + 4
-                frmt += ("{7:" + str(n) + ".0" + str(d) + "}")
-                frmt += ("{8:" + str(n) + ".0" + str(d) + "}")
-                frmt += ("{9:" + str(n) + ".0" + str(d) + "}")
+                frmt += ("{7:" + str(n) + "." + str(d) + "f}")
+                frmt += ("{8:" + str(n) + "." + str(d) + "f}")
+                frmt += ("{9:" + str(n) + "." + str(d) + "f}")
                 out = frmt.format(self.resid, self.resname, self.name,
                     self.atomn, self.loc.x, self.loc.y, self.loc.z,
                     self.velocity.x, self.velocity.y, self.velocity.z)
             else:
                 out = frmt.format(self.resid, self.resname, self.name,
                     self.atomn, self.loc.x, self.loc.y, self.loc.z)
-            print(out)
         else:
             out = frmt.format(self.resid, self.resname, self.name,
                 self.atomn)
