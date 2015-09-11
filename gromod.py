@@ -16,6 +16,7 @@ import os
 import math
 
 from argparse import ArgumentParser
+from astropy.units import count
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -258,12 +259,20 @@ class Gro:
     def __init__(self):
         self.title = ""
         self.atoms = []
+        self.atom_count = 0
         self.box = Box()
 
     def add_atom(self, line):
         atom = Atom()
         atom.parse(line)
         self.atoms.append(atom)
+
+    def renumber(self):
+        count = 0
+        for atom in self.atoms:
+            count += 1
+            atom.atomn = count
+        self.atom_count = count
 
     def resize(self, image_distance):
         # rhombic dodecahedron
@@ -302,6 +311,21 @@ def write_gro(gro_filename, gro):
     output.write(gro.box.output() + "\n")
     output.close()
 
+def do_isolate(gro, resname):
+    newlist = []
+    found = True
+    resnum = -1
+    for atom in gro.atoms:
+        if atom.res == resname:
+            if not found:
+                resnum = atom.resid
+                found = True
+            if atom.resid == resnum:
+                newlist.append(atom)
+    gro.atoms = newlist
+    gro.renumber()
+    return gro
+
 def modify(args):
     verbose = args.verbose
     gro_filename = args.name
@@ -322,6 +346,14 @@ def modify(args):
         print("Read: " + str(gro.title))
         print("Found " + str(len(gro.atoms)) + " atom entries")
         print("Volume of gro file: " + str(gro.box.volume()))
+
+    if isolate != None:
+        gro = do_isolate(gro, isolate)
+
+    if verbose > 0:
+        print("Output: " + str(gro.title))
+        print("Writing " + str(len(gro.atoms)) + " atom entries")
+        print("Volume of new gro: " + str(gro.box.volume()))
     write_gro(out_filename, gro)
 
 def main(argv=None):  # IGNORE:C0111
