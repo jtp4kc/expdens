@@ -758,6 +758,7 @@ class MakeSLURM:
             " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
         text += ("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
             " -o solvent.gro -i SOL -v -t water")
+        return text
 
     def get_boxgen(self):
         return ("genbox -cp ligand.gro -cs solvent.gro" +
