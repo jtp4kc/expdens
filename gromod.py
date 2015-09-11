@@ -303,6 +303,7 @@ def write_gro(gro_filename, gro):
     output.close()
 
 def modify(args):
+    verbose = args.verbose
     gro_filename = args.name
     out_filename = args.output
     isolate = args.isolate
@@ -317,6 +318,10 @@ def modify(args):
         exclude.append(args.exclude)
 
     gro = read_gro(gro_filename)
+    if verbose > 0:
+        print("Read: " + str(gro.title))
+        print("Found " + str(len(gro.atoms)) + " atom entries")
+        print("Volume of gro file: " + str(gro.box.volume()))
     write_gro(out_filename, gro)
 
 def main(argv=None):  # IGNORE:C0111
@@ -367,7 +372,7 @@ USAGE
             help="offset for move [default: %(default)s]", type=float)
         parser.add_argument('-z', "--offsetz", default=0.0,
             help="offset for move [default: %(default)s]", type=float)
-        parser.add_argument('-s', "--shrink", action="store-true",
+        parser.add_argument('-s', "--shrink", action="store_true",
             help="shrink the gro box to fit the contents" +
             "using the general rule for periodic interactions" +
             " (2xCutoff + Width) [default: %(default)s]")
