@@ -848,11 +848,12 @@ echo "Ending. Job completed for lambda = {lam}"
 """
         return text
 
-    def compile(self, gro, top, lam, use_lbfgs=True):
+    def compile(self, gro, top, lam, use_lbfgs=True, use_boxgen=True):
         _d = ""
         if self.double_precision:
             _d = "_d"
-        return self.get_text(use_lbfgs).format(**self.compile.__dict__)
+        return self.get_text(use_lbfgs, use_boxgen).format(
+            **self.compile.__dict__)
 
 def format_lam(lambda_):
     lam = "{0:0.2f}".format(lambda_)
@@ -903,7 +904,6 @@ def launch():
 
 def launch2():
     jobname = "1methsolv"
-    filebase = "1meth"
     topfile = "1meth.top"
     grofile = "1meth.gro"
     mol = "TMP"
@@ -942,10 +942,11 @@ def launch2():
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "_" + lam, ".")
-        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
-            topfile), lam)
+        outtext = slurm.compile(os.path.join("..", grofile),
+            os.path.join("..", topfile), lam, use_lbfgs=False,
+            use_boxgen=True)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol))
-        output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol))
+        # output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol))
         output("nvt.mdp", nvt_mdp(lam, fol, mol))
         output("npt.mdp", npt_mdp(lam, fol, mol))
         output("md.mdp", md_mdp(lam, fol, mol))
