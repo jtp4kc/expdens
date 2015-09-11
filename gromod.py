@@ -191,6 +191,7 @@ class Atom():
             x, y, z = (0.0,) * 3
             self.velocity = None
             numbers = line[20:]
+            print(numbers)
             meas = numbers.split('.')
             if len(meas) > 2:
                 pos_spacing = len(meas[1])
