@@ -932,6 +932,7 @@ def launch2():
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "C" + lam, ".")
+        slurm.double_precision = True
         outtext = slurm.compile(os.path.join("..", grofile),
             os.path.join("..", topfile), lam, use_lbfgs=False)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
