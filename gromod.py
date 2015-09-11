@@ -316,7 +316,7 @@ def do_isolate(gro, resname):
     found = True
     resnum = -1
     for atom in gro.atoms:
-        if atom.res == resname:
+        if atom.resname == resname:
             if not found:
                 resnum = atom.resid
                 found = True
