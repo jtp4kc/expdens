@@ -358,7 +358,7 @@ def do_shrink(gro, cutoff, exclude):
     number = len(filter)
     for atom in filter:
         total.plus(atom.loc, make_new_return=False)
-    center = total.scale(number)
+    center = total.scale(1.0 / number)
     # find longest distance to center, assumed as radius of molecule
     radius = 0
     for atom in filter:
