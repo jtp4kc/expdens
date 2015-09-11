@@ -144,7 +144,7 @@ echo "Ending. Job completed for lambda = $LAMBDA"
 def em_steep_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = steep 
-nsteps                   = 5000
+nsteps                   = 7500
 ; EM criteria and other stuff
 emtol                    = 100
 emstep                   = 0.01
@@ -269,7 +269,7 @@ def nvt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
 integrator               = sd       ; Langevin dynamics
 tinit                    = 0
 dt                       = 0.002
-nsteps                   = 50000    ; 100 ps
+nsteps                   = 100000   ; 200 ps
 nstcomm                  = 100
 ; Output control
 nstxout                  = 500
