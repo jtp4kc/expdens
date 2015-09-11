@@ -753,7 +753,13 @@ class MakeSLURM:
 """.format(**fields)
         return self.header
 
-    def get_boxgen(self, base):
+    def get_ligandextract(self):
+        text = ("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+        text += ("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o solvent.gro -i SOL -v -t water")
+
+    def get_boxgen(self):
         return ("genbox -cp ligand.gro -cs solvent.gro" +
             " -ci solvent.gro -p {top} -o {gro}" +
             " -nmol 6500 -maxsol 10000\n\n")
@@ -826,6 +832,7 @@ echo "Production MD complete."
     def get_text(self, use_lbfgs=True, use_boxgen=False):
         text = self.get_header()
         if use_boxgen:
+            text += self.get_ligandextract()
             text += self.get_boxgen()
         text += """
 module load jtp4kc
