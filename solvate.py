@@ -908,6 +908,15 @@ def launch2():
     topfile = "1meth.top"
     grofile = "1meth.gro"
     mol = "TMP"
+
+    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+        " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o solvent.gro -i SOL -v -t water")
+    os.system("genbox -cp ligand.gro -cs solvent.gro" +
+            " -ci solvent.gro -p " + topfile + " -o " + grofile +
+            " -nmol 6500 -maxsol 10000")
+
     coul1 = "vdw-q"
     coul2 = "vdw"
     dc = 0.25
@@ -924,8 +933,7 @@ def launch2():
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "C" + lam, ".")
         outtext = slurm.compile(os.path.join("..", grofile),
-            os.path.join("..", topfile), lam, use_lbfgs=False,
-            use_boxgen=True)
+            os.path.join("..", topfile), lam, use_lbfgs=False)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
         # output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
         output("nvt.mdp", nvt_mdp(lam, fol, mol, coul1, coul2))
@@ -944,8 +952,7 @@ def launch2():
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "_" + lam, ".")
         outtext = slurm.compile(os.path.join("..", grofile),
-            os.path.join("..", topfile), lam, use_lbfgs=False,
-            use_boxgen=True)
+            os.path.join("..", topfile), lam, use_lbfgs=False)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol))
         # output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol))
         output("nvt.mdp", nvt_mdp(lam, fol, mol))
