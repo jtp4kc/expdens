@@ -180,13 +180,13 @@ class Atom():
         # |  163TMP     N1 2604   4.333   4.508   1.853
         num = len(line)
         if num >= 5:
-            self.resid = float(line[0:5])
+            self.resid = int(line[0:5])
         if num >= 5 + 5:
             self.resname = line[5:10].strip()
         if num >= 10 + 5:
             self.name = line[10:15].strip()
         if num >= 15 + 5:
-            self.atomn = float(line[15:20])
+            self.atomn = int(line[15:20])
         if num > 20:  # numbers format is different
             x, y, z = (0.0,) * 3
             self.velocity = None
