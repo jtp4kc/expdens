@@ -191,10 +191,9 @@ class Atom():
             x, y, z = (0.0,) * 3
             self.velocity = None
             numbers = line[20:]
-            print(numbers)
             meas = numbers.split('.')
             if len(meas) > 2:
-                pos_spacing = len(meas[1])
+                pos_spacing = len(meas[1]) + 1
                 self.position_precision = pos_spacing - 5
                 if len(numbers) >= (1 * pos_spacing):
                     x = float(numbers[
@@ -208,7 +207,7 @@ class Atom():
                     numbers = numbers[(3 * pos_spacing):]
                     meas = numbers.split('.')
                     if len(meas) > 2:
-                        v_spacing = len(meas[1])
+                        v_spacing = len(meas[1]) + 1
                         vx, vy, vz = (0.0,) * 3
                         self.velocity = Vector()
                         self.velocity_precision = v_spacing - 4
