@@ -313,7 +313,7 @@ def write_gro(gro_filename, gro):
 
 def do_isolate(gro, resname):
     newlist = []
-    found = True
+    found = False
     resnum = -1
     for atom in gro.atoms:
         if atom.resname == resname:
