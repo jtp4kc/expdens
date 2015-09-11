@@ -180,6 +180,12 @@ class Box():
         # product u dot ( v cross w ).
         return self.v1.dot(self.v2.cross(self.v3))
 
+    def center(self):
+        # fairly simple, just find the cross-vector and half it
+        cross = self.v1.plus(self.v2.plus(self.v3))
+        cross.scale(0.5, make_new_return=False)
+        return cross
+
     def convert(self, a, b, c, alpha, beta, gamma):
         #  box vectors     box vector angles
         #  a    b    c     <bc    <ac    <ab
@@ -348,20 +354,20 @@ def do_isolate(gro, resname):
     return gro
 
 def do_shrink(gro, cutoff, exclude):
-    filter = []
+    filtered = []
     # ignore residues, if desired
     for atom in gro.atoms:
         if (not atom.resid in exclude) and (not atom.resname in exclude):
-            filter.append(atom)
+            filtered.append(atom)
     # find geometric center
     total = Vector()
-    number = len(filter)
-    for atom in filter:
+    number = len(filtered)
+    for atom in filtered:
         total.plus(atom.loc, make_new_return=False)
     center = total.scale(1.0 / number)
     # find longest distance to center, assumed as radius of molecule
     radius = 0
-    for atom in filter:
+    for atom in filtered:
         dist = atom.loc.minus(center).magnitude()
         if dist > radius:
             radius = dist
@@ -371,14 +377,51 @@ def do_shrink(gro, cutoff, exclude):
 
     return gro
 
+def do_move(gro, move, offset, resname):
+    filtered = []
+    found = False
+    resnum = -1
+    for atom in gro.atoms:
+        if atom.resname == resname:
+            if not found:
+                resnum = atom.resid
+                found = True
+            if atom.resid == resnum:
+                filtered.append(atom)
+
+    if ('origin' in move) or ('center' in move):
+        # subtract geometric center, then add offset
+        total = Vector()
+        number = len(filtered)
+        for atom in filtered:
+            total.plus(atom.loc, make_new_return=False)
+        center = total.scale(1.0 / number)
+
+        for atom in filtered:
+            atom.loc.minus(center, make_new_return=False)
+
+    if 'center' in move:
+        # add center of box to coords (already zeroed above)
+        center = gro.box.center()
+
+        for atom in filtered:
+            atom.loc.plus(center, make_new_return=False)
+
+    if move != None:
+        # add offset
+        for atom in filtered:
+            atom.loc.plus(offset, make_new_return=False)
+
+
+
+    return gro
+
 def modify(args):
     verbose = args.verbose
     gro_filename = args.name
     out_filename = args.output
     isolate = args.isolate
     shrink = args.shrink
-    move = args.move
-    offset = [args.offsetx, args.offsety, args.offsetz]
     exclude = []
     cutoff = float(args.cutoff)
     title = args.title
@@ -386,6 +429,11 @@ def modify(args):
         exclude.extend(args.exclude)
     else:
         exclude.append(args.exclude)
+    move = args.move
+    offset = Vector()
+    offset.x = args.offsetx
+    offset.y = args.offsety
+    offset.z = args.offsetz
 
     gro = read_gro(gro_filename)
     if verbose > 0:
@@ -397,6 +445,8 @@ def modify(args):
         gro = do_isolate(gro, isolate)
     if shrink:
         gro = do_shrink(gro, cutoff, exclude)
+    if move != None:
+        gro = do_move(gro, move, offset)
     if title != None:
         gro.title = title
 
@@ -447,7 +497,8 @@ USAGE
             " of this residue name [default: %(default)s]")
         parser.add_argument('-m', "--move", default=None,
             help="move the residue found by --isolate to either" +
-            " 'origin', 'center', or 'offset' [default: %(default)s]")
+            " 'origin', 'center' (of box), or 'offset'" +
+            " [default: %(default)s]")
         parser.add_argument('-x', "--offsetx", default=0.0,
             help="offset for move [default: %(default)s]", type=float)
         parser.add_argument('-y', "--offsety", default=0.0,
