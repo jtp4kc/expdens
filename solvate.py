@@ -632,32 +632,58 @@ pcoupl                   = no
 
     def free_energy(self):
         text = """; Free energy control stuff
-free_energy              = yes
-init_lambda              = 0.0
-delta_lambda             = 0
-foreign_lambda           = 0.05
-sc-alpha                 = 0.5
-sc-power                 = 1.0
-sc-sigma                 = 0.3 
-couple-moltype           = Methane  ; name of moleculetype to decouple
-couple-lambda0           = vdw      ; only van der Waals interactions
-couple-lambda1           = none     ; turn off everything, in this case only vdW
-couple-intramol          = no
-nstdhdl                  = 10
 """
+        if self.free_energy:
+            text += """free_energy              = {0}
+""".format(self.free_energy)
+        if self.init_lambda:
+            text += """init_lambda              = {0}
+""".format(self.init_lambda)
+        if self.delta_lambda:
+            text += """delta_lambda             = {0}
+""".format(self.delta_lambda)
+        if self.foreign_lambda:
+            text += """foreign_lambda           = {0}
+""".format(self.foreign_lambda)
+        if self.sc_alpha:
+            text += """sc-alpha                 = {0}
+""".format(self.sc_alpha)
+        if self.sc_power:
+            text += """sc-power                 = {0}
+""".format(self.sc_power)
+        if self.sc_sigma:
+            text += """sc-sigma                 = {0}
+""".format(self.sc_sigma)
+        if self.couple_moltype:
+            text += """couple-moltype           = {0}
+""".format(self.couple_moltype)
+        if self.couple_lambda0:
+            text += """couple-lambda0           = {0}
+""".format(self.couple_lambda0)
+        if self.couple_lambda1:
+            text += """couple-lambda1           = {0}
+""".format(self.couple_lambda1)
+        if self.couple_intramol:
+            text += """couple-intramol          = {0}
+""".format(self.couple_intramol)
+        if self.nstdhdl:
+            text += """nstdhdl                  = {0}
+""".format(self.nstdhdl)
         return text
 
     def velocities(self):
         text = """; Generate velocities to start
-gen_vel                  = no 
 """
+        if self.gen_vel:
+            text += """gen_vel                  = {0}
+""".format(self.gen_vel)
         return text
 
     def bond_constraints(self):
         text = """; options for bonds
 """
         if self.constraints:
-            text += """constraints              = h-bonds  ; we only have C-H bonds here
+            text += """constraints              = {0}
 """.format(self.constraints)
         text += """; Type of constraint algorithm
 """
@@ -727,11 +753,8 @@ class MakeSLURM:
 """.format(**fields)
         return self.header
 
-    def get_text(self):
-        return self.get_header() + """
-module load jtp4kc
-module load gromacs-jtp4kc
-        
+    def get_steep(self):
+        return """
 #################################
 # ENERGY MINIMIZATION 1: STEEP  #
 #################################
@@ -741,29 +764,36 @@ echo "Starting minimization for lambda = $LAMBDA..."
 
 grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
 mdrun{_d} -nt 4 -deffnm mins
+"""
 
-
+    def get_lbfgs(self):
+        return """
 #################################
 # ENERGY MINIMIZATION 2: L-BFGS #
 #################################
 grompp{_d} -f em_l-bfgs.mdp -c mins.gro -p {top} -o minl.tpr
 # Run L-BFGS in serial (cannot be run in parallel)
 mdrun{_d} -nt 1 -deffnm minl
+"""
 
-echo "Minimization complete."
-
-
+    def get_nvt(self, lbfgs=True):
+        name = "mins.gro"
+        if lbfgs:
+            name = "minl.gro"
+        return """
 #####################
 # NVT EQUILIBRATION #
 #####################
 echo "Starting constant volume equilibration..."
 
-grompp{_d} -f nvt.mdp -c minl.gro -p {top} -o nvt.tpr
+grompp{_d} -f nvt.mdp -c """ + name + """ -p {top} -o nvt.tpr
 mdrun{_d} -nt 4 -deffnm nvt
 
 echo "Constant volume equilibration complete."
+"""
 
-
+    def get_npt(self):
+        return """
 #####################
 # NPT EQUILIBRATION #
 #####################
@@ -773,8 +803,10 @@ grompp{_d} -f npt.mdp -c nvt.gro -p {top} -t nvt.cpt -o npt.tpr
 mdrun{_d} -nt 4 -deffnm npt
 
 echo "Constant pressure equilibration complete."
+"""
 
-
+    def get_md(self):
+        return """
 #################
 # PRODUCTION MD #
 #################
@@ -784,16 +816,28 @@ grompp{_d} -f md.mdp -c npt.gro -p {top} -t npt.cpt -o md.tpr
 mdrun{_d} -nt 4 -deffnm md
 
 echo "Production MD complete."
+"""
 
+    def get_text(self, use_lbfgs=True):
+        text = self.get_header() + """
+module load jtp4kc
+module load gromacs-jtp4kc
+""" + self.get_steep()
+        if use_lbfgs:
+            text += self.get_lbfgs()
+        text += """
+echo "Minimization complete."
+""" + self.get_nvt(use_lbfgs) + self.get_npt() + self.get_md() + """
 # End
 echo "Ending. Job completed for lambda = {lam}"
 """
+        return text
 
-    def compile(self, gro, top, lam):
+    def compile(self, gro, top, lam, use_lbfgs=True):
         _d = ""
         if self.double_precision:
             _d = "_d"
-        return self.get_text().format(_d=_d, gro=gro, top=top, lam=lam)
+        return self.get_text(use_lbfgs).format(**self.compile.__dict__)
 
 def format_lam(lambda_):
     lam = "{0:0.2f}".format(lambda_)
@@ -862,10 +906,13 @@ def launch2():
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "C" + lam, ".")
+        outtext = ("genbox -cp ligand.gro -cs solvent.gro" +
+            " -ci solvent.gro -p 1meth.top -o 1methyl.gro -nmol 6500" +
+            " -maxsol 10000\n\n")
         outtext = slurm.compile(os.path.join("..", grofile),
-            os.path.join("..", topfile), lam)
+            os.path.join("..", topfile), lam, use_lbfgs=False)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
-        output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
+        # output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
         output("nvt.mdp", nvt_mdp(lam, fol, mol, coul1, coul2))
         output("npt.mdp", npt_mdp(lam, fol, mol, coul1, coul2))
         output("md.mdp", md_mdp(lam, fol, mol, coul1, coul2))
