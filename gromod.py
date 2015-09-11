@@ -96,7 +96,7 @@ class Box():
         #
         # 0.00000    3.34668    3.34668 <-triclinic slant modifiers
         # v2(z) Z    v3(x)        v3(y)
-        info = line.split()
+        info = line.strip().split()
         num = len(info)
         if num < 1:
             return
@@ -182,9 +182,9 @@ class Atom():
         if num >= 5:
             self.resid = float(line[0:5])
         if num >= 5 + 5:
-            self.resname = line[5:10].trim()
+            self.resname = line[5:10].strip()
         if num >= 10 + 5:
-            self.name = line[10:15].trim()
+            self.name = line[10:15].strip()
         if num >= 15 + 5:
             self.atomn = float(line[15:20])
         if num > 20:  # numbers format is different
@@ -281,16 +281,16 @@ def read_gro(gro_filename):
     for line in open(gro_filename, 'r'):
         count += 1
         if count == 1:
-            gro.title = line.trim()
+            gro.title = line.strip()
         elif count == 2:
-            gro.atom_count = int(line.trim())
+            gro.atom_count = int(line.strip())
         else:
             if atom_line != None:  # there was a previous line
-                gro.add_atom(atom_line)
+                gro.add_atom(atom_line.rstrip())  # left space important
                 atom_line = None
             atom_line = line  # save the line to be parsed as box dims
     if atom_line != None:
-        gro.box.parse(atom_line)
+        gro.box.parse(atom_line.strip())
     return gro
 
 def write_gro(gro_filename, gro):
