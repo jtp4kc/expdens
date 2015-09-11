@@ -45,15 +45,31 @@ class Vector():
         self.y = 0
         self.z = 0
 
-    def plus(self, vec):
-        add = Vector()
+    def magnitude(self):
+        return math.sqrt(self.x ** 2 + self.y ** 2 + self.z ** 2)
+
+    def scale(self, scalar, make_new_return=True):
+        result = self
+        if make_new_return:
+            result = Vector()
+        result.x = self.x * scalar
+        result.y = self.y * scalar
+        result.z = self.z * scalar
+        return result
+
+    def plus(self, vec, make_new_return=True):
+        add = self
+        if make_new_return:
+            add = Vector()
         add.x = self.x + vec.x
         add.y = self.y + vec.y
         add.z = self.z + vec.z
         return add
 
-    def minus(self, vec):
-        sub = Vector()
+    def minus(self, vec, make_new_return=True):
+        sub = self
+        if make_new_return:
+            sub = Vector()
         sub.x = self.x - vec.x
         sub.y = self.y - vec.y
         sub.z = self.z - vec.z
@@ -62,11 +78,16 @@ class Vector():
     def dot(self, vec):
         return self.x * vec.x + self.y * vec.y + self.z * vec.z
 
-    def cross(self, vec):
-        prod = Vector()
-        prod.x = self.y * vec.z - self.z * vec.y
-        prod.y = -self.x * vec.z + self.z * vec.x
-        prod.z = self.x * vec.y - self.y * vec.x
+    def cross(self, vec, make_new_return=True):
+        x = self.y * vec.z - self.z * vec.y
+        y = -self.x * vec.z + self.z * vec.x
+        z = self.x * vec.y - self.y * vec.x
+        prod = self
+        if make_new_return:
+            prod = Vector()
+        prod.x = x
+        prod.y = y
+        prod.z = z
         return prod
 
 class Box():
@@ -326,6 +347,30 @@ def do_isolate(gro, resname):
     gro.renumber()
     return gro
 
+def do_shrink(gro, cutoff, exclude):
+    filter = []
+    # ignore residues, if desired
+    for atom in gro.atoms:
+        if (not atom.resid in exclude) and (not atom.resname in exclude):
+            filter.append(atom)
+    # find geometric center
+    total = Vector()
+    number = len(filter)
+    for atom in filter:
+        total.add(atom.loc, make_new_return=False)
+    center = total.scale(number)
+    # find longest distance to center, assumed as radius of molecule
+    radius = 0
+    for atom in filter:
+        dist = atom.loc.minus(center).magnitude()
+        if dist > radius:
+            radius = dist
+
+    image = 2 * (cutoff + radius)
+    gro.resize(image)
+
+    return gro
+
 def modify(args):
     verbose = args.verbose
     gro_filename = args.name
@@ -336,6 +381,7 @@ def modify(args):
     offset = [args.offsetx, args.offsety, args.offsetz]
     exclude = []
     cutoff = float(args.cutoff)
+    title = args.title
     if type(args.exclude) == list:
         exclude.extend(args.exclude)
     else:
@@ -349,6 +395,10 @@ def modify(args):
 
     if isolate != None:
         gro = do_isolate(gro, isolate)
+    if shrink:
+        gro = do_shrink(gro, cutoff, exclude)
+    if title != None:
+        gro.title = title
 
     if verbose > 0:
         print("Output: " + str(gro.title))
@@ -415,6 +465,8 @@ USAGE
         parser.add_argument('-c', "--cutoff", default=1.0,
             help="cutoff (in nm) to use when computing size changes" +
             " [default: %(default)s]", type=float)
+        parser.add_argument('-t', "--title", default=None,
+            help="new title to give to output [default: %(default)s]")
 
         # Process arguments
         args = parser.parse_args()
