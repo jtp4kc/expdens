@@ -379,15 +379,18 @@ def do_shrink(gro, cutoff, exclude):
 
 def do_move(gro, move, offset, resname):
     filtered = []
-    found = False
-    resnum = -1
-    for atom in gro.atoms:
-        if atom.resname == resname:
-            if not found:
-                resnum = atom.resid
-                found = True
-            if atom.resid == resnum:
-                filtered.append(atom)
+    if resname == None:
+        filtered = gro.atoms
+    else:
+        found = False
+        resnum = -1
+        for atom in gro.atoms:
+            if atom.resname == resname:
+                if not found:
+                    resnum = atom.resid
+                    found = True
+                if atom.resid == resnum:
+                    filtered.append(atom)
 
     if ('origin' in move) or ('center' in move):
         # subtract geometric center, then add offset
@@ -446,7 +449,7 @@ def modify(args):
     if shrink:
         gro = do_shrink(gro, cutoff, exclude)
     if move != None:
-        gro = do_move(gro, move, offset)
+        gro = do_move(gro, move, offset, isolate)
     if title != None:
         gro.title = title
 
