@@ -142,8 +142,8 @@ class Box():
 
         line = ""
         for entry in outlist:
-            line += entry
             line += spacing
+            line += entry
 
         return line
 
