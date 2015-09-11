@@ -236,6 +236,7 @@ class Atom():
             frmt += ("{4:" + str(n) + "." + str(d) + "}")
             frmt += ("{5:" + str(n) + "." + str(d) + "}")
             frmt += ("{6:" + str(n) + "." + str(d) + "}")
+            print(frmt)
             if self.velocity:
                 d = self.velocity_precision
                 n = self.velocity_precision + 4
@@ -248,6 +249,7 @@ class Atom():
             else:
                 out = frmt.format(self.resid, self.resname, self.name,
                     self.atomn, self.loc.x, self.loc.y, self.loc.z)
+            print(out)
         else:
             out = frmt.format(self.resid, self.resname, self.name,
                 self.atomn)
