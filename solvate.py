@@ -750,14 +750,20 @@ class MakeSLURM:
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jtp4kc@virginia.edu
 #SBATCH --comment="#SBATCH --array-0,1,3"
+
+MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
+MODULEPATH=$HOME/modules:$MODULEPATH
+
+module load jtp4kc
+module load gromacs-jtp4kc
 """.format(**fields)
         return self.header
 
     def get_ligandextract(self):
         text = ("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
-            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center\n")
         text += ("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
-            " -o solvent.gro -i SOL -v -t water")
+            " -o solvent.gro -i SOL -v -t water\n")
         return text
 
     def get_boxgen(self):
@@ -835,10 +841,7 @@ echo "Production MD complete."
         if use_boxgen:
             text += self.get_ligandextract()
             text += self.get_boxgen()
-        text += """
-module load jtp4kc
-module load gromacs-jtp4kc
-""" + self.get_steep()
+        text += self.get_steep()
         if use_lbfgs:
             text += self.get_lbfgs()
         text += """
@@ -849,7 +852,7 @@ echo "Ending. Job completed for lambda = {lam}"
 """
         return text
 
-    def compile(self, gro, top, lam, use_lbfgs=True, use_boxgen=True):
+    def compile(self, gro, top, lam, use_lbfgs=True, use_boxgen=False):
         _d = ""
         if self.double_precision:
             _d = "_d"
