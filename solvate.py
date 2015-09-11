@@ -753,6 +753,11 @@ class MakeSLURM:
 """.format(**fields)
         return self.header
 
+    def get_boxgen(self, base):
+        return ("genbox -cp ligand.gro -cs solvent.gro" +
+            " -ci solvent.gro -p {top} -o {gro}" +
+            " -nmol 6500 -maxsol 10000\n\n")
+
     def get_steep(self):
         return """
 #################################
@@ -818,8 +823,11 @@ mdrun{_d} -nt 4 -deffnm md
 echo "Production MD complete."
 """
 
-    def get_text(self, use_lbfgs=True):
-        text = self.get_header() + """
+    def get_text(self, use_lbfgs=True, use_boxgen=False):
+        text = self.get_header()
+        if use_boxgen:
+            text += self.get_boxgen()
+        text += """
 module load jtp4kc
 module load gromacs-jtp4kc
 """ + self.get_steep()
@@ -888,6 +896,7 @@ def launch():
 
 def launch2():
     jobname = "1methsolv"
+    filebase = "1meth"
     topfile = "1meth.top"
     grofile = "1meth.gro"
     mol = "TMP"
@@ -906,11 +915,9 @@ def launch2():
             os.mkdir(folder)
         os.chdir(folder)
         slurm = MakeSLURM(jobname, "C" + lam, ".")
-        outtext = ("genbox -cp ligand.gro -cs solvent.gro" +
-            " -ci solvent.gro -p 1meth.top -o 1methyl.gro -nmol 6500" +
-            " -maxsol 10000\n\n")
         outtext = slurm.compile(os.path.join("..", grofile),
-            os.path.join("..", topfile), lam, use_lbfgs=False)
+            os.path.join("..", topfile), lam, use_lbfgs=False,
+            use_boxgen=True)
         output("em_steep.mdp", em_steep_mdp(lam, fol, mol, coul1, coul2))
         # output("em_l-bfgs.mdp", em_lbfgs_mdp(lam, fol, mol, coul1, coul2))
         output("nvt.mdp", nvt_mdp(lam, fol, mol, coul1, coul2))
