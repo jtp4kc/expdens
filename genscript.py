@@ -1506,14 +1506,14 @@ def setup(options, args, opts, parser, cur_dir, save_name):
             print(subcommand + " requires a save file to be specified")
             return False  # don't print save files
         else:
-            print('Reading previous launch files from ' + save_name)
-        save_path = os.path.realpath(save_name)
-        save_lib = saver.parse_options(save_path)
-        if isinstance(save_lib, list):
-            save_lib = save_lib[0]
-        save_lib[save_keys.name] = save_path
-        SUBS[subcommand](save_lib)
-        return False  # don't print save files
+            save_path = os.path.realpath(save_name)
+            print('Reading previous launch files from ' + save_path)
+            save_lib = saver.parse_options(save_path)
+            if isinstance(save_lib, list):
+                save_lib = save_lib[0]
+            save_lib[save_keys.name] = save_path
+            SUBS[subcommand](save_lib)
+            return False  # don't print save files
 
     # output run options
     if opts[KEYS.job_name]:
