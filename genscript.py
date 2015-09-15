@@ -1436,7 +1436,10 @@ def sim_status(save_lib):
 def sim_submit(save_lib):
     submitted = False
     for filename in save_lib[save_keys.files]:
+        filename = str(filename)
         print("Read filename " + filename + " from save")
+        print("Exists? " + str(os.path.exists(filename)))
+        print("Slurm? " + str(filename.endswith('.slurm')))
         if os.path.exists(filename) and filename.endswith('.slurm'):
             print("File " + filename + " scheduled to be submitted.")
             submitted = True
