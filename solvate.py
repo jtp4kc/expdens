@@ -790,7 +790,7 @@ while [ ! -f mins.tpr ]
 do
     grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make mins.tpr encountered"
         break
@@ -802,7 +802,7 @@ while [ ! -f mins.gro ]
 do
     mdrun{_d} -nt 4 -deffnm mins
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make mins.gro encountered"
         break
@@ -821,7 +821,7 @@ while [ ! -f minl.tpr ]
 do
     grompp{_d} -f em_l-bfgs.mdp -c mins.gro -p {top} -o minl.tpr
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make minl.tpr encountered"
         break
@@ -834,7 +834,7 @@ while [ ! -f minl.gro ]
 do
     mdrun{_d} -nt 1 -deffnm minl
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make minl.gro encountered"
         break
@@ -858,7 +858,7 @@ while [ ! -f nvt.tpr ]
 do
     grompp{_d} -f nvt.mdp -c """ + name + """ -p {top} -o nvt.tpr
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make nvt.tpr encountered"
         break
@@ -870,7 +870,7 @@ while [ ! -f nvt.gro ]
 do
     mdrun{_d} -nt 4 -deffnm nvt
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make nvt.gro encountered"
         break
@@ -893,7 +893,7 @@ while [ ! -f npt.tpr ]
 do
     grompp{_d} -f npt.mdp -c nvt.gro -p {top} -t nvt.cpt -o npt.tpr
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make npt.tpr encountered"
         break
@@ -905,7 +905,7 @@ while [ ! -f npt.gro ]
 do
     mdrun{_d} -nt 4 -deffnm npt
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make npt.gro encountered"
         break
@@ -928,7 +928,7 @@ while [ ! -f md.tpr ]
 do
     grompp{_d} -f md.mdp -c npt.gro -p {top} -t npt.cpt -o md.tpr
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make md.tpr encountered"
         break
@@ -940,7 +940,7 @@ while [ ! -f md.gro ]
 do
     mdrun{_d} -nt 4 -deffnm md
     count=$[ $count + 1 ]
-    if [ $count > 5 ]
+    if [ "$count" -gt 5 ]
     then
         echo "max tries to make md.gro encountered"
         break
