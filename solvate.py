@@ -786,6 +786,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make mins.tpr encountered"
         break
     fi
 done
@@ -797,6 +798,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make mins.gro encountered"
         break
     fi
 done
@@ -815,6 +817,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make minl.tpr encountered"
         break
     fi
 done
@@ -827,6 +830,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make minl.gro encountered"
         break
     fi
 done
@@ -850,6 +854,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make nvt.tpr encountered"
         break
     fi
 done
@@ -861,6 +866,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make nvt.gro encountered"
         break
     fi
 done
@@ -883,6 +889,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make npt.tpr encountered"
         break
     fi
 done
@@ -894,6 +901,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make npt.gro encountered"
         break
     fi
 done
@@ -916,6 +924,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make md.tpr encountered"
         break
     fi
 done
@@ -927,6 +936,7 @@ do
     count=$[ $count + 1 ]
     if [ $count > 5 ]
     then
+        echo "max tries to make md.gro encountered"
         break
     fi
 done
