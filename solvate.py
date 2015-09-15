@@ -625,48 +625,52 @@ optimize_fft             = no
 
     def coupling(self):
         text = """; Temperature and pressure coupling are off during EM
-tcoupl                   = no
-pcoupl                   = no
 """
+        if self.tcoupl != None:
+            text += """tcoupl                   = {0}
+""".format(self.tcoupl)
+        if self.pcoupl != None:
+            text += """pcoupl                   = {0}
+""".format(self.pcoupl)
         return text
 
     def free_energy(self):
         text = """; Free energy control stuff
 """
-        if self.free_energy:
+        if self.free_energy != None:
             text += """free_energy              = {0}
 """.format(self.free_energy)
-        if self.init_lambda:
+        if self.init_lambda != None:
             text += """init_lambda              = {0}
 """.format(self.init_lambda)
-        if self.delta_lambda:
+        if self.delta_lambda != None:
             text += """delta_lambda             = {0}
 """.format(self.delta_lambda)
-        if self.foreign_lambda:
+        if self.foreign_lambda != None:
             text += """foreign_lambda           = {0}
 """.format(self.foreign_lambda)
-        if self.sc_alpha:
+        if self.sc_alpha != None:
             text += """sc-alpha                 = {0}
 """.format(self.sc_alpha)
-        if self.sc_power:
+        if self.sc_power != None:
             text += """sc-power                 = {0}
 """.format(self.sc_power)
-        if self.sc_sigma:
+        if self.sc_sigma != None:
             text += """sc-sigma                 = {0}
 """.format(self.sc_sigma)
-        if self.couple_moltype:
+        if self.couple_moltype != None:
             text += """couple-moltype           = {0}
 """.format(self.couple_moltype)
-        if self.couple_lambda0:
+        if self.couple_lambda0 != None:
             text += """couple-lambda0           = {0}
 """.format(self.couple_lambda0)
-        if self.couple_lambda1:
+        if self.couple_lambda1 != None:
             text += """couple-lambda1           = {0}
 """.format(self.couple_lambda1)
-        if self.couple_intramol:
+        if self.couple_intramol != None:
             text += """couple-intramol          = {0}
 """.format(self.couple_intramol)
-        if self.nstdhdl:
+        if self.nstdhdl != None:
             text += """nstdhdl                  = {0}
 """.format(self.nstdhdl)
         return text
@@ -674,7 +678,7 @@ pcoupl                   = no
     def velocities(self):
         text = """; Generate velocities to start
 """
-        if self.gen_vel:
+        if self.gen_vel != None:
             text += """gen_vel                  = {0}
 """.format(self.gen_vel)
         return text
@@ -682,22 +686,22 @@ pcoupl                   = no
     def bond_constraints(self):
         text = """; options for bonds
 """
-        if self.constraints:
+        if self.constraints != None:
             text += """constraints              = {0}
 """.format(self.constraints)
         text += """; Type of constraint algorithm
 """
-        if self.contstraint_algorithm:
+        if self.contstraint_algorithm != None:
             text += """constraint-algorithm     = {0}
 """.format(self.constraint_algorithm)
         text += """; Do not constrain the starting configuration
 """
-        if self.continuation:
+        if self.continuation != None:
             text += """continuation             = {0}
 """.format(self.continuation)
         text += """; Highest order in the expansion of the constraint coupling matrix
 """
-        if self.lincs_order:
+        if self.lincs_order != None:
             text += """lincs-order              = {0}
 """.format(self.lincs_order)
         return text
@@ -775,7 +779,27 @@ echo "Starting minimization for lambda = $LAMBDA..."
 # Iterative calls to grompp and mdrun to run the simulations
 
 grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
+count=$[ 0 ]
+while [ ! -f mins.tpr ]
+do
+    grompp{_d} -f em_steep.mdp -c {gro} -p {top} -o mins.tpr
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
+count=$[ 0 ]
 mdrun{_d} -nt 4 -deffnm mins
+while [ ! -f mins.gro ]
+do
+    mdrun{_d} -nt 4 -deffnm mins
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 """
 
     def get_lbfgs(self):
@@ -784,8 +808,28 @@ mdrun{_d} -nt 4 -deffnm mins
 # ENERGY MINIMIZATION 2: L-BFGS #
 #################################
 grompp{_d} -f em_l-bfgs.mdp -c mins.gro -p {top} -o minl.tpr
+count=$[ 0 ]
+while [ ! -f minl.tpr ]
+do
+    grompp{_d} -f em_l-bfgs.mdp -c mins.gro -p {top} -o minl.tpr
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 # Run L-BFGS in serial (cannot be run in parallel)
 mdrun{_d} -nt 1 -deffnm minl
+count=$[ 0 ]
+while [ ! -f minl.gro ]
+do
+    mdrun{_d} -nt 1 -deffnm minl
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 """
 
     def get_nvt(self, lbfgs=True):
@@ -799,7 +843,27 @@ mdrun{_d} -nt 1 -deffnm minl
 echo "Starting constant volume equilibration..."
 
 grompp{_d} -f nvt.mdp -c """ + name + """ -p {top} -o nvt.tpr
+count=$[ 0 ]
+while [ ! -f nvt.tpr ]
+do
+    grompp{_d} -f nvt.mdp -c """ + name + """ -p {top} -o nvt.tpr
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 mdrun{_d} -nt 4 -deffnm nvt
+count=$[ 0 ]
+while [ ! -f nvt.gro ]
+do
+    mdrun{_d} -nt 4 -deffnm nvt
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 
 echo "Constant volume equilibration complete."
 """
@@ -812,7 +876,27 @@ echo "Constant volume equilibration complete."
 echo "Starting constant pressure equilibration..."
 
 grompp{_d} -f npt.mdp -c nvt.gro -p {top} -t nvt.cpt -o npt.tpr
+count=$[ 0 ]
+while [ ! -f npt.tpr ]
+do
+    grompp{_d} -f npt.mdp -c nvt.gro -p {top} -t nvt.cpt -o npt.tpr
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 mdrun{_d} -nt 4 -deffnm npt
+count=$[ 0 ]
+while [ ! -f npt.gro ]
+do
+    mdrun{_d} -nt 4 -deffnm npt
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 
 echo "Constant pressure equilibration complete."
 """
@@ -825,7 +909,27 @@ echo "Constant pressure equilibration complete."
 echo "Starting production MD simulation..."
 
 grompp{_d} -f md.mdp -c npt.gro -p {top} -t npt.cpt -o md.tpr
+count=$[ 0 ]
+while [ ! -f md.tpr ]
+do
+    grompp{_d} -f md.mdp -c npt.gro -p {top} -t npt.cpt -o md.tpr
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 mdrun{_d} -nt 4 -deffnm md
+count=$[ 0 ]
+while [ ! -f md.gro ]
+do
+    mdrun{_d} -nt 4 -deffnm md
+    count=$[ $count + 1 ]
+    if [ $count > 5 ]
+    then
+        break
+    fi
+done
 
 echo "Production MD complete."
 """
