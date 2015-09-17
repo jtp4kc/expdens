@@ -141,10 +141,350 @@ echo "Production MD complete."
 echo "Ending. Job completed for lambda = $LAMBDA"
 """
 
+def em_steep_MDP():
+    return """; Run control
+integrator               = steep 
+nsteps                   = 5000
+; EM criteria and other stuff
+emtol                    = 100
+emstep                   = 0.01
+niter                    = 20
+nbfgscorr                = 10
+; Output control
+nstlog                   = 1
+nstenergy                = 1
+; Neighborsearching and short-range nonbonded interactions
+nstlist                  = 1
+ns_type                  = grid
+pbc                      = xyz
+rlist                    = 1.0
+; Electrostatics
+coulombtype              = PME
+rcoulomb                 = 1.0
+; van der Waals
+vdw-type                 = switch
+rvdw-switch              = 0.8
+rvdw                     = 0.9
+; Apply long range dispersion corrections for Energy and Pressure
+DispCorr                  = EnerPres
+; Spacing for the PME/PPPM FFT grid
+fourierspacing           = 0.12
+; EWALD/PME/PPPM parameters
+pme_order                = 6
+ewald_rtol               = 1e-06
+epsilon_surface          = 0
+optimize_fft             = no
+; Temperature and pressure coupling are off during EM
+tcoupl                   = no
+pcoupl                   = no
+; Free energy control stuff
+free_energy              = yes
+init_lambda              = 0.0
+delta_lambda             = 0
+foreign_lambda           = 0.05
+sc-alpha                 = 0.5
+sc-power                 = 1.0
+sc-sigma                 = 0.3 
+couple-moltype           = Methane  ; name of moleculetype to decouple
+couple-lambda0           = vdw      ; only van der Waals interactions
+couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-intramol          = no
+nstdhdl                  = 10
+; Generate velocities to start
+gen_vel                  = no 
+; options for bonds
+constraints              = h-bonds  ; we only have C-H bonds here
+; Type of constraint algorithm
+constraint-algorithm     = lincs
+; Do not constrain the starting configuration
+continuation             = no
+; Highest order in the expansion of the constraint coupling matrix
+lincs-order              = 12
+"""
+
+def em_lbfgs_MDP():
+    return """; Run control
+integrator               = l-bfgs
+nsteps                   = 5000
+define                   = -DFLEXIBLE
+; EM criteria and other stuff
+emtol                    = 100
+emstep                   = 0.01
+niter                    = 20
+nbfgscorr                = 10
+; Output control
+nstlog                   = 1
+nstenergy                = 1
+; Neighborsearching and short-range nonbonded interactions
+nstlist                  = 1
+ns_type                  = grid
+pbc                      = xyz
+rlist                    = 1.0
+; Electrostatics
+coulombtype              = PME
+rcoulomb                 = 1.0
+; van der Waals
+vdw-type                 = switch
+rvdw-switch              = 0.8
+rvdw                     = 0.9
+; Apply long range dispersion corrections for Energy and Pressure
+DispCorr                  = EnerPres
+; Spacing for the PME/PPPM FFT grid
+fourierspacing           = 0.12
+; EWALD/PME/PPPM parameters
+pme_order                = 6
+ewald_rtol               = 1e-06
+epsilon_surface          = 0
+optimize_fft             = no
+; Temperature and pressure coupling are off during EM
+tcoupl                   = no
+pcoupl                   = no
+; Free energy control stuff
+free_energy              = yes
+init_lambda              = 0.0
+delta_lambda             = 0
+foreign_lambda           = 0.05
+sc-alpha                 = 0.5
+sc-power                 = 1.0
+sc-sigma                 = 0.3 
+couple-moltype           = Methane  ; name of moleculetype to decouple
+couple-lambda0           = vdw      ; only van der Waals interactions
+couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-intramol          = no
+nstdhdl                  = 10
+; Generate velocities to start
+gen_vel                  = no 
+; options for bonds
+constraints              = none     ; L-BFGS doesn't work with constraints 
+; Type of constraint algorithm
+constraint-algorithm     = lincs
+; Do not constrain the starting configuration
+continuation             = no
+; Highest order in the expansion of the constraint coupling matrix
+lincs-order              = 12
+"""
+
+def nvt_MDP():
+    return """; Run control
+integrator               = sd       ; Langevin dynamics
+tinit                    = 0
+dt                       = 0.002
+nsteps                   = 50000    ; 100 ps
+nstcomm                  = 100
+; Output control
+nstxout                  = 500
+nstvout                  = 500
+nstfout                  = 0
+nstlog                   = 500
+nstenergy                = 500
+nstxtcout                = 0
+xtc-precision            = 1000
+; Neighborsearching and short-range nonbonded interactions
+nstlist                  = 10
+ns_type                  = grid
+pbc                      = xyz
+rlist                    = 1.0
+; Electrostatics
+coulombtype              = PME
+rcoulomb                 = 1.0
+; van der Waals
+vdw-type                 = switch
+rvdw-switch              = 0.8
+rvdw                     = 0.9
+; Apply long range dispersion corrections for Energy and Pressure
+DispCorr                  = EnerPres
+; Spacing for the PME/PPPM FFT grid
+fourierspacing           = 0.12
+; EWALD/PME/PPPM parameters
+pme_order                = 6
+ewald_rtol               = 1e-06
+epsilon_surface          = 0
+optimize_fft             = no
+; Temperature coupling
+; tcoupl is implicitly handled by the sd integrator
+tc_grps                  = system
+tau_t                    = 1.0
+ref_t                    = 300
+; Pressure coupling is off for NVT
+Pcoupl                   = No
+tau_p                    = 0.5
+compressibility          = 4.5e-05
+ref_p                    = 1.0 
+; Free energy control stuff
+free_energy              = yes
+init_lambda              = 0.0
+delta_lambda             = 0
+foreign_lambda           = 0.05
+sc-alpha                 = 0.5
+sc-power                 = 1.0
+sc-sigma                 = 0.3 
+couple-moltype           = Methane  ; name of moleculetype to decouple
+couple-lambda0           = vdw      ; only van der Waals interactions
+couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-intramol          = no
+nstdhdl                  = 10
+; Generate velocities to start
+gen_vel                  = yes
+gen_temp                 = 300
+gen_seed                 = -1
+; options for bonds
+constraints              = h-bonds  ; we only have C-H bonds here
+; Type of constraint algorithm
+constraint-algorithm     = lincs
+; Do not constrain the starting configuration
+continuation             = no
+; Highest order in the expansion of the constraint coupling matrix
+lincs-order              = 12
+"""
+
+def npt_MDP():
+    return """; Run control
+integrator               = sd       ; Langevin dynamics
+tinit                    = 0
+dt                       = 0.002
+nsteps                   = 50000    ; 100 ps
+nstcomm                  = 100
+; Output control
+nstxout                  = 500
+nstvout                  = 500
+nstfout                  = 0
+nstlog                   = 500
+nstenergy                = 500
+nstxtcout                = 0
+xtc-precision            = 1000
+; Neighborsearching and short-range nonbonded interactions
+nstlist                  = 10
+ns_type                  = grid
+pbc                      = xyz
+rlist                    = 1.0
+; Electrostatics
+coulombtype              = PME
+rcoulomb                 = 1.0
+; van der Waals
+vdw-type                 = switch
+rvdw-switch              = 0.8
+rvdw                     = 0.9
+; Apply long range dispersion corrections for Energy and Pressure
+DispCorr                  = EnerPres
+; Spacing for the PME/PPPM FFT grid
+fourierspacing           = 0.12
+; EWALD/PME/PPPM parameters
+pme_order                = 6
+ewald_rtol               = 1e-06
+epsilon_surface          = 0
+optimize_fft             = no
+; Temperature coupling
+; tcoupl is implicitly handled by the sd integrator
+tc_grps                  = system
+tau_t                    = 1.0
+ref_t                    = 300
+; Pressure coupling is on for NPT
+Pcoupl                   = Parrinello-Rahman 
+tau_p                    = 0.5
+compressibility          = 4.5e-05
+ref_p                    = 1.0 
+; Free energy control stuff
+free_energy              = yes
+init_lambda              = 0.0
+delta_lambda             = 0
+foreign_lambda           = 0.05
+sc-alpha                 = 0.5
+sc-power                 = 1.0
+sc-sigma                 = 0.3 
+couple-moltype           = Methane  ; name of moleculetype to decouple
+couple-lambda0           = vdw      ; only van der Waals interactions
+couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-intramol          = no
+nstdhdl                  = 10
+; Do not generate velocities
+gen_vel                  = no 
+; options for bonds
+constraints              = h-bonds  ; we only have C-H bonds here
+; Type of constraint algorithm
+constraint-algorithm     = lincs
+; Constrain the starting configuration
+; since we are continuing from NVT
+continuation             = yes 
+; Highest order in the expansion of the constraint coupling matrix
+lincs-order              = 12
+"""
+
+def md_MDP():
+    return """; Run control
+integrator               = sd       ; Langevin dynamics
+tinit                    = 0
+dt                       = 0.002
+nsteps                   = 2500000  ; 5 ns
+nstcomm                  = 100
+; Output control
+nstxout                  = 500
+nstvout                  = 500
+nstfout                  = 0
+nstlog                   = 500
+nstenergy                = 500
+nstxtcout                = 0
+xtc-precision            = 1000
+; Neighborsearching and short-range nonbonded interactions
+nstlist                  = 10
+ns_type                  = grid
+pbc                      = xyz
+rlist                    = 1.0
+; Electrostatics
+coulombtype              = PME
+rcoulomb                 = 1.0
+; van der Waals
+vdw-type                 = switch
+rvdw-switch              = 0.8
+rvdw                     = 0.9
+; Apply long range dispersion corrections for Energy and Pressure
+DispCorr                  = EnerPres
+; Spacing for the PME/PPPM FFT grid
+fourierspacing           = 0.12
+; EWALD/PME/PPPM parameters
+pme_order                = 6
+ewald_rtol               = 1e-06
+epsilon_surface          = 0
+optimize_fft             = no
+; Temperature coupling
+; tcoupl is implicitly handled by the sd integrator
+tc_grps                  = system
+tau_t                    = 1.0
+ref_t                    = 300
+; Pressure coupling is on for NPT
+Pcoupl                   = Parrinello-Rahman 
+tau_p                    = 0.5
+compressibility          = 4.5e-05
+ref_p                    = 1.0 
+; Free energy control stuff
+free_energy              = yes
+init_lambda              = 0.0
+delta_lambda             = 0
+foreign_lambda           = 0.05
+sc-alpha                 = 0.5
+sc-power                 = 1.0
+sc-sigma                 = 0.3 
+couple-moltype           = Methane  ; name of moleculetype to decouple
+couple-lambda0           = vdw      ; only van der Waals interactions
+couple-lambda1           = none     ; turn off everything, in this case only vdW
+couple-intramol          = no
+nstdhdl                  = 10
+; Do not generate velocities
+gen_vel                  = no 
+; options for bonds
+constraints              = h-bonds  ; we only have C-H bonds here
+; Type of constraint algorithm
+constraint-algorithm     = lincs
+; Constrain the starting configuration
+; since we are continuing from NPT
+continuation             = yes 
+; Highest order in the expansion of the constraint coupling matrix
+lincs-order              = 12
+"""
+
 def em_steep_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
     return """; Run control
 integrator               = steep 
-nsteps                   = 7500
+nsteps                   = 5000
 ; EM criteria and other stuff
 emtol                    = 100
 emstep                   = 0.01
@@ -269,7 +609,7 @@ def nvt_mdp(lam="0.0", fol="0.05", mol="Methane", cp1="vdw", cp2="none"):
 integrator               = sd       ; Langevin dynamics
 tinit                    = 0
 dt                       = 0.002
-nsteps                   = 100000   ; 200 ps
+nsteps                   = 50000    ; 100 ps
 nstcomm                  = 100
 ; Output control
 nstxout                  = 500
@@ -484,15 +824,77 @@ lincs-order              = 12
 class MakeMDP:
 
     def __init__(self):
-        self.integrator = "steep"
-        self.nsteps = "5000"
-        self.emtol = "100"
-        self.emstep = "0.01"
-        self.niter = "20"
-        self.nbfgscorr = "10"
-        self.nstlog = "1"
-        self.nstenergy = "1"
-        self.nstlist = "1"
+        self.integrator = None
+        self.tinit = None
+        self.dt = None
+        self.nsteps = None
+        self.nstcomm = None
+        self.define = None
+        self.emtol = None
+        self.emstep = None
+        self.niter = None
+        self.nbfgscorr = None
+        self.nstxout = None
+        self.nstvout = None
+        self.nstfout = None
+        self.nstlog = None
+        self.nstenergy = None
+        self.nstxtcout = None
+        self.xtc_precision = None
+        self.nstlist = None
+        self.ns_type = None
+        self.pbc = None
+        self.rlist = None
+        self.coulombtype = None
+        self.rcoulomb = None
+        self.vdw_type = None
+        self.rvdw_switch = None
+        self.rvdw = None
+        self.DispCorr = None
+        self.fourierspacing = None
+        self.pme_order = None
+        self.ewald_rtol = None
+        self.epsilon_surface = None
+        self.optimize_fft = None
+        self.tcoupl = None
+        self.tc_grps = None
+        self.tau_t = None
+        self.ref_t = None
+        self.pcoupl = None
+        self.tau_p = None
+        self.compressibility = None
+        self.ref_p = None
+        self.free_energy = None
+        self.init_lambda = None
+        self.delta_lambda = None
+        self.foreign_lambda = None
+        self.sc_alpha = None
+        self.sc_power = None
+        self.sc_sigma = None
+        self.couple_moltype = None
+        self.couple_lambda0 = None
+        self.couple_lambda1 = None
+        self.couple_intramol = None
+        self.nstdhdl = None
+        self.gen_vel = None
+        self.gen_temp = None
+        self.gen_seed = None
+        self.constraints = None
+        self.constraint_algorithm = None
+        self.continuation = None
+        self.lincs_order = None
+        # comments
+        self.comment_coupling1 = None
+        self.comment_coupling2 = None
+        self.comment_coupling3 = None
+        self.comment_velocities1 = None
+        self.comment_constraints1 = None
+        self.comment_constraints2 = None
+
+    def core(self):
+        # reset
+        self.__init__()
+        # define
         self.ns_type = "grid"
         self.pbc = "xyz"
         self.rlist = "1.0"
@@ -507,42 +909,166 @@ class MakeMDP:
         self.ewald_rtol = "1e-06"
         self.epsilon_surface = "0"
         self.optimize_fft = "no"
-        self.tcoupl = "no"
-        self.pcoupl = "no"
         self.free_energy = "yes"
         self.init_lambda = "0.0"
         self.delta_lambda = "0"
         self.foreign_lambda = "0.05"
         self.sc_alpha = "0.5"
         self.sc_power = "1.0"
-        self.sc_sigma = "0.3"
+        self.sc_sigma = "0.3 "
         self.couple_moltype = "Methane  ; name of moleculetype to decouple"
         self.couple_lambda0 = "vdw      ; only van der Waals interactions"
         self.couple_lambda1 = "none     ; turn off everything, in this case only vdW"
         self.couple_intramol = "no"
         self.nstdhdl = "10"
-        self.gen_vel = "no "
-        self.constraints = "h-bonds  ; we only have C-H bonds here"
         self.constraint_algorithm = "lincs"
-        self.continuation = "no"
         self.lincs_order = "12"
 
     def enermin_steep(self):
-        self.integrator = "steep"
+        self.core()
+        self.integrator = "steep "
+        self.nsteps = "5000"
+        self.emtol = "100"
+        self.emstep = "0.01"
+        self.niter = "20"
+        self.nbfgscorr = "10"
+        self.nstlog = "1"
+        self.nstenergy = "1"
+        self.nstlist = "1"
+        self.comment_coupling1 = ("Temperature and pressure coupling are" +
+            " off during EM")
+        self.tcoupl = "no"
+        self.pcoupl = "no"
+        self.comment_velocities1 = "Generate velocities to start"
+        self.gen_vel = "no "
+        self.constraints = "h-bonds  ; we only have C-H bonds here"
+        self.comment_constraints1 = ("Do not constrain the starting" +
+            " configuration")
+        self.continuation = "no"
 
     def enermin_lbfgs(self):
+        self.core()
         self.integrator = "l-bfgs"
+        self.nsteps = "5000"
         self.define = "-DFLEXIBLE"
+        self.emtol = "100"
+        self.emstep = "0.01"
+        self.niter = "20"
+        self.nbfgscorr = "10"
+        self.nstlog = "1"
+        self.nstenergy = "1"
+        self.nstlist = "1"
+        self.comment_coupling1 = ("Temperature and pressure coupling are" +
+            " off during EM")
+        self.tcoupl = "no"
+        self.pcoupl = "no"
+        self.comment_velocities1 = "Generate velocities to start"
+        self.gen_vel = "no "
         self.constraints = "none     ; L-BFGS doesn't work with constraints "
+        self.comment_constraints1 = ("Do not constrain the starting" +
+            " configuration")
+        self.continuation = "no"
 
-    def nvt(self):
+    def equilibrate_nvt(self):
+        self.core()
+        self.integrator = "sd       ; Langevin dynamics"
+        self.tinit = "0"
+        self.dt = "0.002"
         self.nsteps = "50000    ; 100 ps"
+        self.nstcomm = "100"
+        self.nstxout = "500"
+        self.nstvout = "500"
+        self.nstfout = "0"
+        self.nstlog = "500"
+        self.nstenergy = "500"
+        self.nstxtcout = "0"
+        self.xtc_precision = "1000"
+        self.nstlist = "10"
+        self.comment_coupling1 = "Temperature coupling"
+        self.comment_coupling2 = ("tcoupl is implicitly handled by the" +
+            " sd integrator")
+        self.tc_grps = "system"
+        self.tau_t = "1.0"
+        self.ref_t = "300"
+        self.comment_coupling3 = "Pressure coupling is off for NVT"
+        self.pcoupl = "no"
+        self.tau_p = "0.5"
+        self.compressibility = "4.5e-05"
+        self.ref_p = "1.0 "
+        self.comment_velocities1 = "Generate velocities to start"
+        self.gen_vel = "yes"
+        self.gen_temp = "300"
+        self.gen_seed = "-1"
+        self.constraints = "h-bonds  ; we only have C-H bonds here"
+        self.comment_constraints1 = ("Do not constrain the starting" +
+            " configuration")
+        self.continuation = "no"
 
-    def npt(self):
-        pass
+    def equilibrate_npt(self):
+        self.core()
+        self.integrator = "sd       ; Langevin dynamics"
+        self.tinit = "0"
+        self.dt = "0.002"
+        self.nsteps = "50000    ; 100 ps"
+        self.nstcomm = "100"
+        self.nstxout = "500"
+        self.nstvout = "500"
+        self.nstfout = "0"
+        self.nstlog = "500"
+        self.nstenergy = "500"
+        self.nstxtcout = "0"
+        self.xtc_precision = "1000"
+        self.nstlist = "10"
+        self.comment_coupling1 = "Temperature coupling"
+        self.comment_coupling2 = ("tcoupl is implicitly handled by the" +
+            " sd integrator")
+        self.tc_grps = "system"
+        self.tau_t = "1.0"
+        self.ref_t = "300"
+        self.comment_coupling3 = "Pressure coupling is on for NPT"
+        self.pcoupl = "Parrinello-Rahman"
+        self.tau_p = "0.5"
+        self.compressibility = "4.5e-05"
+        self.ref_p = "1.0 "
+        self.comment_velocities1 = "Do not generate velocities"
+        self.gen_vel = "no "
+        self.constraints = "h-bonds  ; we only have C-H bonds here"
+        self.comment_constraints1 = ("Constrain the starting configuration")
+        self.comment_constraints2 = ("since we are continuing from NVT")
+        self.continuation = "yes "
 
-    def md(self):
-        pass
+    def production_md(self):
+        self.core()
+        self.integrator = "sd       ; Langevin dynamics"
+        self.tinit = "0"
+        self.dt = "0.002"
+        self.nsteps = "2500000  ; 5 ns"
+        self.nstcomm = "100"
+        self.nstxout = "500"
+        self.nstvout = "500"
+        self.nstfout = "0"
+        self.nstlog = "500"
+        self.nstenergy = "500"
+        self.nstxtcout = "0"
+        self.xtc_precision = "1000"
+        self.nstlist = "10"
+        self.comment_coupling1 = "Temperature coupling"
+        self.comment_coupling2 = ("tcoupl is implicitly handled by the" +
+            " sd integrator")
+        self.tc_grps = "system"
+        self.tau_t = "1.0"
+        self.ref_t = "300"
+        self.comment_coupling3 = "Pressure coupling is on for NPT"
+        self.pcoupl = "Parrinello-Rahman"
+        self.tau_p = "0.5"
+        self.compressibility = "4.5e-05"
+        self.ref_p = "1.0 "
+        self.comment_velocities1 = "Do not generate velocities"
+        self.gen_vel = "no "
+        self.constraints = "h-bonds  ; we only have C-H bonds here"
+        self.comment_constraints1 = ("Constrain the starting configuration")
+        self.comment_constraints2 = ("since we are continuing from NPT")
+        self.continuation = "yes "
 
     def compile(self):
         text = self.run_control()
@@ -554,87 +1080,192 @@ class MakeMDP:
         text += self.corrections()
         text += self.pme_pppm()
         text += self.coupling()
-        text += self.free_energy()
+        text += self.free_energy_control()
         text += self.velocities()
         text += self.bond_constraints()
         return text
 
     def run_control(self):
         text = """; Run control
-integrator               = steep 
-nsteps                   = 5000
 """
+        if self.integrator != None:
+            text += """integrator               = {0}
+""".format(self.integrator)
+        if self.tinit != None:
+            text += """tinit                    = {0}
+""".format(self.tinit)
+        if self.dt != None:
+            text += """dt                       = {0}
+""".format(self.dt)
+        if self.nsteps != None:
+            text += """nsteps                   = {0}
+""".format(self.nsteps)
+        if self.nstcomm != None:
+            text += """nstcomm                  = {0}
+""".format(self.nstcomm)
+        if self.define != None:
+            text += """define                   = {0}
+""".format(self.define)
         return text
 
     def em_criteria(self):
+        if ((self.emtol == None) and (self.emstep == None)
+            and (self.niter == None) and (self.nbfgscorr == None)):
+            return ""
+
         text = """; EM criteria and other stuff
-emtol                    = 100
-emstep                   = 0.01
-niter                    = 20
-nbfgscorr                = 10
 """
+        if self.emtol != None:
+            text += """emtol                    = {0}
+""".format(self.emtol)
+        if self.emstep != None:
+            text += """emstep                   = {0}
+""".format(self.emstep)
+        if self.niter != None:
+            text += """niter                    = {0}
+""".format(self.niter)
+        if self.nbfgscorr != None:
+            text += """nbfgscorr                = {0}
+""".format(self.nbfgscorr)
         return text
 
     def output_control(self):
         text = """; Output control
-nstlog                   = 1
-nstenergy                = 1
 """
+        if self.nstxout != None:
+            text += """nstxout                  = {0}
+""".format(self.nstxout)
+        if self.nstvout != None:
+            text += """nstvout                  = {0}
+""".format(self.nstvout)
+        if self.nstfout != None:
+            text += """nstfout                  = {0}
+""".format(self.nstfout)
+        if self.nstlog != None:
+            text += """nstlog                   = {0}
+""".format(self.nstlog)
+        if self.nstenergy != None:
+            text += """nstenergy                = {0}
+""".format(self.nstenergy)
+        if self.nstxtcout != None:
+            text += """nstxtcout                = {0}
+""".format(self.nstxtcout)
+        if self.xtc_precision != None:
+            text += """xtc-precision            = {0}
+""".format(self.xtc_precision)
         return text
 
     def neighborsearching(self):
         text = """; Neighborsearching and short-range nonbonded interactions
-nstlist                  = 1
-ns_type                  = grid
-pbc                      = xyz
-rlist                    = 1.0
 """
+        if self.nstlist != None:
+            text += """nstlist                  = {0}
+""".format(self.nstlist)
+        if self.ns_type != None:
+            text += """ns_type                  = {0}
+""".format(self.ns_type)
+        if self.pbc != None:
+            text += """pbc                      = {0}
+""".format(self.pbc)
+        if self.rlist != None:
+            text += """rlist                    = {0}
+""".format(self.rlist)
         return text
 
     def electrostatics(self):
         text = """; Electrostatics
-coulombtype              = PME
-rcoulomb                 = 1.0
 """
+        if self.coulombtype != None:
+            text += """coulombtype              = {0}
+""".format(self.coulombtype)
+        if self.rcoulomb != None:
+            text += """rcoulomb                 = {0}
+""".format(self.rcoulomb)
         return text
 
     def vanderWaals(self):
         text = """; van der Waals
-vdw-type                 = switch
-rvdw-switch              = 0.8
-rvdw                     = 0.9
 """
+        if self.vdw_type != None:
+            text += """vdw-type                 = {0}
+""".format(self.vdw_type)
+        if self.rvdw_switch != None:
+            text += """rvdw-switch              = {0}
+""".format(self.rvdw_switch)
+        if self.rvdw != None:
+            text += """rvdw                     = {0}
+""".format(self.rvdw)
         return text
 
     def corrections(self):
         text = """; Apply long range dispersion corrections for Energy and Pressure
-DispCorr                  = EnerPres
 """
+        if self.DispCorr != None:
+            text += """DispCorr                  = {0}
+""".format(self.DispCorr)
         return text
 
     def pme_pppm(self):
         text = """; Spacing for the PME/PPPM FFT grid
-fourierspacing           = 0.12
-; EWALD/PME/PPPM parameters
-pme_order                = 6
-ewald_rtol               = 1e-06
-epsilon_surface          = 0
-optimize_fft             = no
 """
+        if self.fourierspacing != None:
+            text += """fourierspacing           = {0}
+""".format(self.fourierspacing)
+        text += """; EWALD/PME/PPPM parameters
+"""
+        if self.pme_order != None:
+            text += """pme_order                = {0}
+""".format(self.pme_order)
+        if self.ewald_rtol != None:
+            text += """ewald_rtol               = {0}
+""".format(self.ewald_rtol)
+        if self.epsilon_surface != None:
+            text += """epsilon_surface          = {0}
+""".format(self.epsilon_surface)
+        if self.optimize_fft != None:
+            text += """optimize_fft             = {0}
+""".format(self.optimize_fft)
         return text
 
     def coupling(self):
-        text = """; Temperature and pressure coupling are off during EM
-"""
+        text = ""
+        if self.comment_coupling1 != None:
+            text += """; {0}
+""".format(self.comment_coupling1)
+        if self.comment_coupling2 != None:
+            text += """; {0}
+""".format(self.comment_coupling2)
         if self.tcoupl != None:
             text += """tcoupl                   = {0}
 """.format(self.tcoupl)
+        if self.tc_grps != None:
+            text += """tc_grps                  = {0}
+""".format(self.tc_grps)
+        if self.tau_t != None:
+            text += """tau_t                    = {0}
+""".format(self.tau_t)
+        if self.ref_t != None:
+            text += """ref_t                    = {0}
+""".format(self.ref_t)
+
+        if self.comment_coupling3 != None:
+            text += """; {0}
+""".format(self.comment_coupling3)
         if self.pcoupl != None:
             text += """pcoupl                   = {0}
 """.format(self.pcoupl)
+        if self.tau_p != None:
+            text += """tau_p                    = {0}
+""".format(self.tau_p)
+        if self.compressibility != None:
+            text += """compressibility          = {0}
+""".format(self.compressibility)
+        if self.ref_p != None:
+            text += """ref_p                    = {0}
+""".format(self.ref_p)
         return text
 
-    def free_energy(self):
+    def free_energy_control(self):
         text = """; Free energy control stuff
 """
         if self.free_energy != None:
@@ -676,11 +1307,19 @@ optimize_fft             = no
         return text
 
     def velocities(self):
-        text = """; Generate velocities to start
-"""
+        text = ""
+        if self.comment_velocities1 != None:
+            text += """; {0}
+""".format(self.comment_velocities1)
         if self.gen_vel != None:
             text += """gen_vel                  = {0}
 """.format(self.gen_vel)
+        if self.gen_temp != None:
+            text += """gen_temp                 = {0}
+""".format(self.gen_temp)
+        if self.gen_seed != None:
+            text += """gen_seed                 = {0}
+""".format(self.gen_seed)
         return text
 
     def bond_constraints(self):
@@ -691,11 +1330,16 @@ optimize_fft             = no
 """.format(self.constraints)
         text += """; Type of constraint algorithm
 """
-        if self.contstraint_algorithm != None:
+        if self.constraint_algorithm != None:
             text += """constraint-algorithm     = {0}
 """.format(self.constraint_algorithm)
-        text += """; Do not constrain the starting configuration
-"""
+
+        if self.comment_constraints1 != None:
+            text += """; {0}
+""".format(self.comment_constraints1)
+        if self.comment_constraints2 != None:
+            text += """; {0}
+""".format(self.comment_constraints2)
         if self.continuation != None:
             text += """continuation             = {0}
 """.format(self.continuation)
@@ -994,7 +1638,7 @@ def output(name, string):
     out.write(string)
     out.close()
 
-def launch():
+def launch_meth():
     jobname = "lambda"
     topfile = "alab.top"
     grofile = "methane_water.gro"
@@ -1016,6 +1660,48 @@ def launch():
         output("nvt.mdp", nvt_mdp(lam, fol))
         output("npt.mdp", npt_mdp(lam, fol))
         output("md.mdp", md_mdp(lam, fol))
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+
+def launch_meth2():
+    jobname = "lambda"
+    topfile = "alab.top"
+    grofile = "methane_water.gro"
+    dl = 0.05
+    schedule = [dl * x for x in range(0, int(1.0 / dl) + 1)]
+    for lambda_ in schedule:
+        foreign = [lambda_ - dl, lambda_ + dl]
+        lam = format_lam(lambda_)
+        fol = format_fol(foreign)
+        folder = jobname + "_" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        outtext = slurm.compile(os.path.join("..", grofile), os.path.join("..",
+            topfile), lam)
+        mdpgen = MakeMDP()
+        mdpgen.enermin_steep()
+        mdpgen.init_lambda = lam
+        mdpgen.foreign_lambda = fol
+        output("em_steep.mdp", mdpgen.compile())
+        mdpgen.enermin_lbfgs()
+        mdpgen.init_lambda = lam
+        mdpgen.foreign_lambda = fol
+        output("em_l-bfgs.mdp", mdpgen.compile())
+        mdpgen.equilibrate_nvt()
+        mdpgen.init_lambda = lam
+        mdpgen.foreign_lambda = fol
+        output("nvt.mdp", mdpgen.compile())
+        mdpgen.equilibrate_npt()
+        mdpgen.init_lambda = lam
+        mdpgen.foreign_lambda = fol
+        output("npt.mdp", mdpgen.compile())
+        mdpgen.production_md()
+        mdpgen.init_lambda = lam
+        mdpgen.foreign_lambda = fol
+        output("md.mdp", mdpgen.compile())
         output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
@@ -1080,6 +1766,145 @@ def launch2():
         os.system("sbatch job.slurm")
         os.chdir("..")
 
+def do_set(mdpgen, lam, fol, mol, coul1, coul2):
+    mdpgen.init_lambda = lam
+    mdpgen.foreign_lambda = fol
+    mdpgen.couple_moltype = mol
+    mdpgen.couple_lambda0 = coul1
+    mdpgen.couple_lambda1 = coul2
+
+def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False):
+    mdpgen.enermin_steep()
+    do_set(mdpgen, lam, fol, mol, coul1, coul2)
+    output("em_steep.mdp", mdpgen.compile())
+
+    if lbfgs:
+        mdpgen.enermin_lbfgs()
+        do_set(mdpgen, lam, fol, mol, coul1, coul2)
+        output("em_l-bfgs.mdp", mdpgen.compile())
+
+    mdpgen.equilibrate_nvt()
+    do_set(mdpgen, lam, fol, mol, coul1, coul2)
+    output("nvt.mdp", mdpgen.compile())
+
+    mdpgen.equilibrate_npt()
+    do_set(mdpgen, lam, fol, mol, coul1, coul2)
+    output("npt.mdp", mdpgen.compile())
+
+    mdpgen.production_md()
+    do_set(mdpgen, lam, fol, mol, coul1, coul2)
+    output("md.mdp", mdpgen.compile())
+
+def launch():
+    jobname = "1methsolv"
+    topfile = "1meth.top"
+    grofile = "1meth.gro"
+    mol = "TMP"
+
+    mdpgen = MakeMDP()
+
+    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+        " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o solvent.gro -i SOL -v -t water")
+    os.system("genbox -cp ligand.gro -cs solvent.gro" +
+            " -ci solvent.gro -p " + topfile + " -o " + grofile +
+            " -nmol 6500 -maxsol 10000")
+
+    coul1 = "vdw-q"
+    coul2 = "vdw"
+    dc = 0.25
+    dl = 0.05
+    coulomb = [dc * x for x in range(0, int(1.0 / dc) + 1)]
+    schedule = [dl * x for x in range(0, int(1.0 / dl) + 1)]
+    for lambda_ in coulomb:
+        foreign = [lambda_ - dc, lambda_ + dc]
+        lam = format_lam(lambda_)
+        fol = format_fol(foreign)
+        folder = jobname + "C" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "C" + lam, ".")
+        slurm.double_precision = True
+        outtext = slurm.compile(os.path.join("..", grofile),
+            os.path.join("..", topfile), lam, use_lbfgs=False)
+        array(mdpgen, lam, fol, mol, coul1, coul2)
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+    for lambda_ in schedule:
+        foreign = [lambda_ - dl, lambda_ + dl]
+        lam = format_lam(lambda_)
+        fol = format_fol(foreign)
+        folder = jobname + "_" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "_" + lam, ".")
+        outtext = slurm.compile(os.path.join("..", grofile),
+            os.path.join("..", topfile), lam, use_lbfgs=False)
+        array(mdpgen, lam, fol, mol)
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+
+def testmdp():
+    output("0steep.mdp", em_steep_MDP())
+    output("0lbfgs.mdp", em_lbfgs_MDP())
+    output("0nvt.mdp", nvt_MDP())
+    output("0npt.mdp", npt_MDP())
+    output("0md.mdp", md_MDP())
+
+    output("1steep.mdp", em_steep_mdp())
+    output("1lbfgs.mdp", em_lbfgs_mdp())
+    output("1nvt.mdp", nvt_mdp())
+    output("1npt.mdp", npt_mdp())
+    output("1md.mdp", md_mdp())
+
+    maker = MakeMDP()
+    maker.enermin_steep()
+    output("2steep.mdp", maker.compile())
+    maker.enermin_lbfgs()
+    output("2lbfgs.mdp", maker.compile())
+    maker.equilibrate_nvt()
+    output("2nvt.mdp", maker.compile())
+    maker.equilibrate_npt()
+    output("2npt.mdp", maker.compile())
+    maker.production_md()
+    output("2md.mdp", maker.compile())
+
+    os.system("diff 1steep.mdp 2steep.mdp &> diff_steep.txt")
+    os.system("diff 1lbfgs.mdp 2lbfgs.mdp &> diff_lbfgs.txt")
+    os.system("diff 1nvt.mdp 2nvt.mdp &> diff_nvt.txt")
+    os.system("diff 1npt.mdp 2npt.mdp &> diff_npt.txt")
+    os.system("diff 1md.mdp 2md.mdp &> diff_md.txt")
+
+def testplain():
+    folder_old = "5382947-old"
+    folder_new = "5382947-new"
+    os.system("rm -r " + folder_old)
+    os.mkdir(folder_old)
+    os.chdir(folder_old)
+    launch_meth()
+    os.chdir("..")
+    os.system("rm -r " + folder_new)
+    os.mkdir(folder_new)
+    os.chdir(folder_new)
+    launch_meth2()
+    os.chdir("..")
+    # launch2()
+    os.system("diff " + folder_old + "/lambda_0.3/em_steep.mdp" +
+        " " + folder_new + "/lambda_0.3/em_steep.mdp &> diff_steep.txt")
+    os.system("diff " + folder_old + "/lambda_0.3/em_l-bfgs.mdp" +
+        " " + folder_new + "/lambda_0.3/em_l-bfgs.mdp &> diff_lbfgs.txt")
+    os.system("diff " + folder_old + "/lambda_0.3/nvt.mdp " + folder_new +
+        "/lambda_0.3/nvt.mdp &> diff_nvt.txt")
+    os.system("diff " + folder_old + "/lambda_0.3/npt.mdp " + folder_new +
+        "/lambda_0.3/npt.mdp &> diff_npt.txt")
+    os.system("diff " + folder_old + "/lambda_0.3/md.mdp " + folder_new +
+        "/lambda_0.3/md.mdp &> diff_md.txt")
+
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
 
@@ -1140,7 +1965,7 @@ USAGE
             ### do something with inpath ###
             print(inpath)
 
-        launch2()
+        launch()
 
         return 0
     except KeyboardInterrupt:
