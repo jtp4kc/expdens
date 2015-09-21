@@ -436,7 +436,9 @@ class SlurmGen:
 #SBATCH --workdir={workdir}
 #SBATCH --checkpoint=06:00:00
 #SBATCH --checkpoint-dir=/scratch/jtp4kc/checkpoints
-#SBATCH --mail-type=END,FAIL,REQUEUE
+#SBATCH --mail-type=REQUEUE
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jtp4kc@virginia.edu
 #SBATCH --comment="#SBATCH --array-0,1,3"
 """.format(**fields)
