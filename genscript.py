@@ -451,7 +451,7 @@ class SlurmGen:
         self.setup = """MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
 MODULEPATH=$HOME/modules:$MODULEPATH
 module load jtp4kc
-module load python
+module load anaconda-jtp
 module load openmpi/1.8.1
 """
         if self.gromacs5:
