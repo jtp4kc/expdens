@@ -137,7 +137,7 @@ USAGE
         resume = conv(args.resume)
         time = conv(args.time)
         copy = conv(args.copy)
-        if not name.endswith(".cpt"):
+        if (name != None) and not name.endswith(".cpt"):
             name += ".cpt"
 
         if verbose > 0:
@@ -151,11 +151,14 @@ USAGE
 #             raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
 
         for inpath in paths:
+            print('Making changes to ' + inpath)
             if restore and inpath.endswith(".bak"):
+                print('\trestoring...')
                 filename = os.path.realpath(inpath)
                 new = filename.replace(".bak", "")
                 os.system("mv " + filename + " " + new)
             if inpath.endswith(".slurm"):
+                print('\tmodifying...')
                 update_slurm(inpath, name, ignore, resume, time, copy)
         return 0
     except KeyboardInterrupt:
