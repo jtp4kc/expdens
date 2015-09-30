@@ -22,6 +22,7 @@ class MDP:
         self.nsteps = None
         self.comm_mode = None
         self.nstcomm = None
+        self.comm_grps = None
         self.define = None
         #################################
         # energy minimization criteria
@@ -37,9 +38,12 @@ class MDP:
         self.nstvout = None
         self.nstfout = None
         self.nstlog = None
+        self.nstcalcenergy = None
         self.nstenergy = None
         self.nstxtcout = None
         self.xtc_precision = None
+        self.nstxout_compressed = None
+        self.compressed_x_precision = None
         #################################
         # neighbor searching
         #--------------------------------
@@ -50,12 +54,16 @@ class MDP:
         #################################
         # electrostatics
         #--------------------------------
+        self.cutoff_scheme = None
         self.coulombtype = None
+        self.coulomb_modifier = None
+        self.rcoulomb_switch = None
         self.rcoulomb = None
         #################################
         # van der Waals
         #--------------------------------
         self.vdw_type = None
+        self.vdw_modifier = None
         self.rvdw_switch = None
         self.rvdw = None
         #################################
@@ -66,18 +74,25 @@ class MDP:
         # particle mesh ewald
         #--------------------------------
         self.fourierspacing = None
+        self.fourier_nx = None
+        self.fourier_ny = None
+        self.fourier_nz = None
         self.pme_order = None
         self.ewald_rtol = None
+        self.ewald_geometry = None
         self.epsilon_surface = None
         self.optimize_fft = None
         #################################
         # coupling
         #--------------------------------
         self.tcoupl = None
+        self.nsttcouple = None
         self.tc_grps = None
         self.tau_t = None
         self.ref_t = None
         self.pcoupl = None
+        self.pcoupltype = None
+        self.nstpcouple = None
         self.tau_p = None
         self.compressibility = None
         self.ref_p = None
@@ -95,7 +110,31 @@ class MDP:
         self.couple_lambda0 = None
         self.couple_lambda1 = None
         self.couple_intramol = None
+        self.init_lambda_state = None
+        self.fep_lambdas = None
+        self.coul_lambdas = None
+        self.vdw_lambdas = None
+        self.symmetrized_transition_matrix = None
+        self.nst_transition_matrix = None
         self.nstdhdl = None
+        self.dhdl_print_energy = None
+        #################################
+        # expanded ensemble
+        #--------------------------------
+        self.nstexpanded = None
+        self.lmc_stats = None
+        self.lmc_weights_equil = None
+        self.lmc_seed = None
+        self.lmc_move = None
+        self.init_lambda_weights = None
+        self.weight_equil_wl_delta = None
+        #################################
+        # wang landau
+        #--------------------------------
+        self.wl_scale = None
+        self.wl_ratio = None
+        self.init_wl_delta = None
+        self.wl_oneovert = None
         #################################
         # velocities
         #--------------------------------
@@ -107,6 +146,7 @@ class MDP:
         #--------------------------------
         self.constraints = None
         self.constraint_algorithm = None
+        self.shake_tol = None
         self.continuation = None
         self.lincs_order = None
         #################################
@@ -143,6 +183,10 @@ class MDP:
         text += self.free_energy_control()
         if text != "":
             text += "\n"
+        text += self.expanded_ensemble()
+        text += self.wang_landau()
+        if text != "":
+            text += "\n"
         text += self.velocities()
         if text != "":
             text += "\n"
@@ -154,8 +198,8 @@ class MDP:
         text = ""
         for pair in varlist:
             key = str(pair[0])
-            value = str(pair[1])
-            if value != None:
+            if pair[1] != None:
+                value = str(pair[1])
                 if key == "":  # comment
                     text += "; " + value + "\n"
                 else:
@@ -179,6 +223,7 @@ class MDP:
                    ("nsteps", self.nsteps),
                    ("comm-mode", self.comm_mode),
                    ("nstcomm", self.nstcomm),
+                   ("comm-grps", self.comm_grps),
                    ("define", self.define)]
 
         if self.check_empty(varlist):
@@ -206,9 +251,13 @@ class MDP:
                    ("nstvout", self.nstvout),
                    ("nstfout", self.nstfout),
                    ("nstlog", self.nstlog),
+                   ("nstcalcenergy", self.nstcalcenergy),
                    ("nstenergy", self.nstenergy),
                    ("nstxtcout", self.nstxtcout),
-                   ("xtc-precision", self.xtc_precision)]
+                   ("xtc-precision", self.xtc_precision),
+                   ("nstxout-compressed", self.nstxout_compressed),
+                   ("compressed-x-precision",
+                        self.compressed_x_precision), ]
 
         if self.check_empty(varlist):
             return ""
@@ -232,7 +281,10 @@ class MDP:
         return text
 
     def electrostatics(self):
-        varlist = [("coulombtype", self.coulombtype),
+        varlist = [("cutoff-scheme", self.cutoff_scheme),
+                   ("coulombtype", self.coulombtype),
+                   ("coulomb-modifier", self.coulomb_modifier),
+                   ("rcoulomb-switch", self.rcoulomb_switch),
                    ("rcoulomb", self.rcoulomb)]
 
         if self.check_empty(varlist):
@@ -244,6 +296,7 @@ class MDP:
 
     def vanderWaals(self):
         varlist = [("vdw-type", self.vdw_type),
+                   ("vdw-modifier", self.vdw_modifier),
                    ("rvdw-switch", self.rvdw_switch),
                    ("rvdw", self.rvdw)]
 
@@ -267,8 +320,12 @@ class MDP:
 
     def pme_pppm(self):
         varlist = [("fourierspacing", self.fourierspacing),
+                   ("fourier_nx", self.fourier_nx),
+                   ("fourier_ny", self.fourier_ny),
+                   ("fourier_nz", self.fourier_nz),
                    ("pme_order", self.pme_order),
                    ("ewald_rtol", self.ewald_rtol),
+                   ("ewald_geometry", self.ewald_geometry),
                    ("epsilon_surface", self.epsilon_surface),
                    ("optimize_fft", self.optimize_fft)]
 
@@ -284,11 +341,14 @@ class MDP:
         varlist = [("", self.comment_coupling1),
                    ("", self.comment_coupling2),
                    ("tcoupl", self.tcoupl),
+                   ("nsttcouple", self.nsttcouple),
                    ("tc_grps", self.tc_grps),
                    ("tau_t", self.tau_t),
                    ("ref_t", self.ref_t),
                    ("", self.comment_coupling3),
                    ("pcoupl", self.pcoupl),
+                   ("pcoupltype", self.pcoupltype),
+                   ("nstpcouple", self.nstpcouple),
                    ("tau_p", self.tau_p),
                    ("compressibility", self.compressibility),
                    ("ref_p", self.ref_p)]
@@ -312,12 +372,49 @@ class MDP:
                    ("couple-lambda0", self.couple_lambda0),
                    ("couple-lambda1", self.couple_lambda1),
                    ("couple-intramol", self.couple_intramol),
-                   ("nstdhdl", self.nstdhdl)]
+                   ("init-lambda-state", self.init_lambda_state),
+                   ("fep-lambdas", self.fep_lambdas),
+                   ("coul-lambdas", self.coul_lambdas),
+                   ("vdw-lambdas", self.vdw_lambdas),
+                   ("symmetrized-transition-matrix",
+                        self.symmetrized_transition_matrix),
+                   ("nst-transition-matrix", self.nst_transition_matrix),
+                   ("nstdhdl", self.nstdhdl),
+                   ("dhdl-print-energy", self.dhdl_print_energy)]
 
         if self.check_empty(varlist):
             return ""
 
         text = "; Free energy control stuff\n"
+        text += self.format_section(varlist)
+        return text
+
+    def expanded_ensemble(self):
+        varlist = [("nstexpanded", self.nstexpanded),
+                   ("lmc-stats", self.lmc_stats),
+                   ("lmc-weights-equil", self.lmc_weights_equil),
+                   ("lmc-seed", self.lmc_seed),
+                   ("lmc-move", self.lmc_move),
+                   ("init-lambda=weights", self.init_lambda_weights),
+                   ("weight-equil-wl-delta", self.weight_equil_wl_delta)]
+
+        if self.check_empty(varlist):
+            return ""
+
+        text = "; Expanded ensemble\n"
+        text += self.format_section(varlist)
+        return text
+
+    def wang_landau(self):
+        varlist = [("wl-scale", self.wl_scale),
+                   ("wl-ratio", self.wl_ratio),
+                   ("init-wl-delta", self.init_wl_delta),
+                   ("wl-oneovert", self.wl_oneovert)]
+
+        if self.check_empty(varlist):
+            return ""
+
+        text = "; Wang-Landau options\n"
         text += self.format_section(varlist)
         return text
 
@@ -337,6 +434,7 @@ class MDP:
     def bond_constraints(self):
         varlist = [("constraints", self.constraints),
                    ("constraint-algorithm", self.constraint_algorithm),
+                   ("shake-tol", self.shake_tol),
                    ("", self.comment_constraints1),
                    ("", self.comment_constraints2),
                    ("continuation", self.continuation),
@@ -346,9 +444,11 @@ class MDP:
             return ""
 
         text = "; options for bonds\n"
-        varlist.insert(6, ("", "Highest order in the expansion of the" +
-            " constraint coupling matrix"))
-        varlist.insert(1, ("", "Type of constraint algorithm"))
+        if self.lincs_order != None:
+            varlist.insert(6, ("", "Highest order in the expansion" +
+            " of the constraint coupling matrix"))
+        if self.constraint_algorithm != None:
+            varlist.insert(1, ("", "Type of constraint algorithm"))
         text += self.format_section(varlist)
         return text
 

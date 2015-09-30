@@ -1002,6 +1002,62 @@ class MakeMDP(mdp_template.MDP):
         self.comment_constraints2 = ("since we are continuing from NPT")
         self.continuation = "yes "
 
+    def modify_1meth(self, double=True, pcouple=False):
+        if double:
+            tau_t = 0.5
+            tau_p = 20.0
+            shake_tol = 1e-12
+        else:
+            tau_t = 1.0
+            tau_p = 5.0
+            shake_tol = 5e-6
+
+        self.integrator = "md-vv"
+        self.comm_mode = "Linear"
+        self.nstcomm = "1"
+        self.nsttcouple = "1"  #
+        self.nstpcouple = "1"  #
+        # neighbors
+        self.rlist = "1.2"
+        # output control
+        self.nstcalcenergy = "1"  #
+        # interactions
+        self.cutoff_scheme = "group"  #
+        self.coulombtype = "PME"  #
+        self.coulomb_modifier = "Potential-Switch"  #
+        self.rcoulomb_switch = "0.88"  #
+        self.rcoulomb = "0.9"
+        self.vdw_type = "Cut-off"
+        self.vdw_modifier = "Potential-switch"  #
+        self.rvdw_switch = "0.85"
+        self.rvdw = "0.9"
+        self.DispCorr = "AllEnerPres"
+        self.fourierspacing = "0.12"
+        self.fourier_nx = "0"  #
+        self.fourier_ny = "0"  #
+        self.fourier_nz = "0"  #
+        self.pme_order = "4"
+        self.ewald_rtol = "1e-05"  #
+        self.ewald_geometry = "3d"  #
+        # bonds
+        self.constraint_algorithm = "shake"
+        self.shake_tol = str(shake_tol)  #
+        # coupling
+        self.tc_grps = "System"
+        self.tcoupl = "v-rescale"
+        self.tau_t = str(tau_t)
+        self.ref_t = "300.0"
+        if pcouple:
+            self.pcoupl = "MTTK"
+            self.pcoupltype = "isotropic"  #
+            self.tau_p = str(tau_p)
+            self.compressibility = "4.5e-5 ; 1/bar"
+            self.ref_p = "1.0 ; bar"
+        else:
+            self.pcoupl = "no"
+        # free energy
+        self.dhdl_print_energy = "yes"
+
 class MakeSLURM:
 
     def __init__(self, job_name, suffix, workdir, ntasks=4):
@@ -1561,7 +1617,8 @@ def do_set(mdpgen, lam, fol, mol, coul1, coul2):
     mdpgen.couple_lambda0 = coul1
     mdpgen.couple_lambda1 = coul2
 
-def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False):
+def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
+        methylpyrrole=False):
     mdpgen.enermin_steep()
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("em_steep.mdp", mdpgen.compile())
@@ -1572,14 +1629,20 @@ def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False):
         output("em_l-bfgs.mdp", mdpgen.compile())
 
     mdpgen.equilibrate_nvt()
+    if methylpyrrole:
+        mdpgen.modify_1meth()
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("nvt.mdp", mdpgen.compile())
 
     mdpgen.equilibrate_npt()
+    if methylpyrrole:
+        mdpgen.modify_1meth()
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("npt.mdp", mdpgen.compile())
 
     mdpgen.production_md()
+    if methylpyrrole:
+        mdpgen.modify_1meth()
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("md.mdp", mdpgen.compile())
 
@@ -1617,7 +1680,7 @@ def launch():
         slurm.double_precision = True
         outtext = slurm.compile(os.path.join("..", grofile),
             os.path.join("..", topfile), lam, use_lbfgs=False)
-        array(mdpgen, lam, fol, mol, coul1, coul2)
+        array(mdpgen, lam, fol, mol, coul1, coul2, methylpyrrole=True)
         output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
@@ -1632,7 +1695,7 @@ def launch():
         slurm = MakeSLURM(jobname, "_" + lam, ".")
         outtext = slurm.compile(os.path.join("..", grofile),
             os.path.join("..", topfile), lam, use_lbfgs=False)
-        array(mdpgen, lam, fol, mol)
+        array(mdpgen, lam, fol, mol, methylpyrrole=True)
         output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
