@@ -1060,7 +1060,7 @@ class MakeMDP(mdp_template.MDP):
 
 class MakeSLURM:
 
-    def __init__(self, job_name, suffix, workdir, ntasks=4):
+    def __init__(self, job_name, suffix, workdir, ntasks=6):
         self.double_precision = True
         self.use_mpi = False
         self.gromacs5 = False
