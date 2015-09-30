@@ -1103,7 +1103,9 @@ class MakeSLURM:
 #SBATCH --workdir={workdir}
 #SBATCH --checkpoint=06:00:00
 #SBATCH --checkpoint-dir=/scratch/jtp4kc/checkpoints
-#SBATCH --mail-type=END,FAIL,REQUEUE
+#SBATCH --mail-type=REQUEUE
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jtp4kc@virginia.edu
 #SBATCH --comment="#SBATCH --array-0,1,3"
 
@@ -1646,7 +1648,7 @@ def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("md.mdp", mdpgen.compile())
 
-def launch():
+def launch(skip=False):
     jobname = "1methsolv"
     topfile = "1meth.top"
     grofile = "1meth.gro"
@@ -1654,13 +1656,14 @@ def launch():
 
     mdpgen = MakeMDP()
 
-    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
-        " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
-    os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
-            " -o solvent.gro -i SOL -v -t water")
-    os.system("genbox -cp ligand.gro -cs solvent.gro" +
-            " -ci solvent.gro -p " + topfile + " -o " + grofile +
-            " -nmol 6500 -maxsol 10000")
+    if not skip:
+        os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+        os.system("python ~/git/expdens/gromod.py -n t41meth-in.gro" +
+                " -o solvent.gro -i SOL -v -t water")
+        os.system("genbox -cp ligand.gro -cs solvent.gro" +
+                " -ci solvent.gro -p " + topfile + " -o " + grofile +
+                " -nmol 6500 -maxsol 10000")
 
     coul1 = "vdw-q"
     coul2 = "vdw"
@@ -1791,6 +1794,8 @@ USAGE
         parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
         parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument('-s', '--skip', action='store_true',
+            help="skip gromod")
         parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='*')
 
         # Process arguments
@@ -1816,7 +1821,7 @@ USAGE
             ### do something with inpath ###
             print(inpath)
 
-        launch()
+        launch(skip=args.skip)
 
         return 0
     except KeyboardInterrupt:
