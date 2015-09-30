@@ -53,7 +53,7 @@ def update_slurm(filename, cptname=None, ignore=None, resume=None,
             if copyfile != None:
                 for copyline in open(copyfile, 'r'):
                     copyline = copyline.rstrip()
-                    output.write(copyline + "/n")
+                    output.write(copyline + "\n")
         if not ignore_active:
             if (timekey in line) and (time != None):
                 split = line.split(timekey)
