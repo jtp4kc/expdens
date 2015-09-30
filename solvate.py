@@ -1056,6 +1056,10 @@ MODULEPATH=$HOME/modules:$MODULEPATH
 
 module load jtp4kc
 module load gromacs-jtp4kc
+
+export GMX_SUPPRESS_DUMP=1 #prevent step file output
+
+sleep 1
 """.format(**fields)
         return self.header
 
