@@ -53,7 +53,7 @@ def update_slurm(filename, cptname=None, ignore=None, resume=None,
             if copyfile != None:
                 for copyline in open(copyfile, 'r'):
                     copyline = copyline.rstrip()
-                    copyfile.write(copyline + "/n")
+                    output.write(copyline + "/n")
         if not ignore_active:
             if (timekey in line) and (time != None):
                 split = line.split(timekey)
@@ -151,14 +151,13 @@ USAGE
 #             raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
 
         for inpath in paths:
-            print('Making changes to ' + inpath)
             if restore and inpath.endswith(".bak"):
-                print('\trestoring...')
+                print('Restoring ' + inpath)
                 filename = os.path.realpath(inpath)
                 new = filename.replace(".bak", "")
                 os.system("mv " + filename + " " + new)
             if inpath.endswith(".slurm"):
-                print('\tmodifying...')
+                print('Modifying ' + inpath)
                 update_slurm(inpath, name, ignore, resume, time, copy)
         return 0
     except KeyboardInterrupt:
