@@ -1636,13 +1636,13 @@ def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
 
     mdpgen.equilibrate_npt()
     if methylpyrrole:
-        mdpgen.modify_1meth()
+        mdpgen.modify_1meth(pcouple=True)
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("npt.mdp", mdpgen.compile())
 
     mdpgen.production_md()
     if methylpyrrole:
-        mdpgen.modify_1meth()
+        mdpgen.modify_1meth(pcouple=True)
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
     output("md.mdp", mdpgen.compile())
 
