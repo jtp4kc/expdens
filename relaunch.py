@@ -37,19 +37,34 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-def update_slurm(filename, cptname):
+def update_slurm(filename, cptname=None, ignore=None, resume=None,
+        time=None, copyfile=None):
     path = os.path.realpath(filename)
     new = path + ".bak"
     os.system("mv " + path + " " + new)
 
+    timekey = "--time="
+    ignore_active = False
     output = open(path, 'w')
     for line in open(new, 'r'):
         line = line.rstrip()
-        if "grompp" in line:
-            continue
-        if "mdrun" in line:
-            line = line + " -cpi " + cptname
-        output.write(line + "\n")
+        if (ignore != None) and (ignore in line):
+            ignore_active = True
+        if (resume != None) and (resume in line):
+            ignore_active = True
+            if copyfile != None:
+                for copyline in open(copyfile, 'r'):
+                    copyline = copyline.rstrip()
+                    copyfile.write(copyline + "/n")
+        if not ignore_active:
+            if (timekey in line) and (time != None):
+                split = line.split(timekey)
+                line = split[0] + timekey + time
+            if "grompp" in line:
+                continue
+            if ("mdrun" in line) and (cptname != None):
+                line = line + " -cpi " + cptname
+            output.write(line + "\n")
     output.close()
 
 def main(argv=None):  # IGNORE:C0111
@@ -89,6 +104,17 @@ USAGE
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument('-n', "--name", help="name of cpt file to " +
             " reference when specifying a restart point")
+        parser.add_argument("-i", "--ignore", help="ignore lines after" +
+            " this str until the resume str is encountered")
+        parser.add_argument('-r', '--resume', help="continue copying" +
+            " lines after this string is encountered")
+        parser.add_argument('-t', '--time', help="replace the time" +
+            " request string in the file with this one")
+        parser.add_argument('-c', '--copy', help="if an ignore section" +
+            "is encountered, when it finishes, copy this file's" +
+            " contents into the ignored space")
+        parser.add_argument('--restore', action="store_true", help=
+            "look for .bak files and move them to their original name")
         parser.add_argument(dest="paths", help="slurm script files to" +
             " modify [default: %(default)s]", metavar="path", nargs='*')
 
@@ -100,7 +126,12 @@ USAGE
 #         recurse = args.recurse
 #         inpat = args.include
 #         expat = args.exclude
+        restore = args.restore
         name = str(args.name)
+        ignore = str(args.ignore)
+        resume = str(args.resume)
+        time = str(args.time)
+        copy = str(args.copy)
         if not name.endswith(".cpt"):
             name += ".cpt"
 
@@ -115,8 +146,12 @@ USAGE
 #             raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
 
         for inpath in paths:
+            if restore and inpath.endswith(".bak"):
+                filename = os.path.realpath(inpath)
+                new = filename.replace(".bak", "")
+                os.system("mv " + filename + " " + new)
             if inpath.endswith(".slurm"):
-                update_slurm(inpath, name)
+                update_slurm(inpath, name, ignore, resume, time, copy)
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
