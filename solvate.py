@@ -1155,10 +1155,10 @@ do
     fi
 done
 count=$[ 0 ]
-mdrun{_d} -nt 4 -deffnm mins
+mdrun{_d} -nt {ntasks} -deffnm mins
 while [ ! -f mins.gro ]
 do
-    mdrun{_d} -nt 4 -deffnm mins
+    mdrun{_d} -nt {ntasks} -deffnm mins
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1166,7 +1166,7 @@ do
         break
     fi
 done
-"""
+""".format(**self.fields_general)
 
     def get_lbfgs(self):
         return """
@@ -1222,11 +1222,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt 4 -deffnm nvt
+mdrun{_d} -nt {ntasks} -deffnm nvt
 count=$[ 0 ]
 while [ ! -f nvt.gro ]
 do
-    mdrun{_d} -nt 4 -deffnm nvt
+    mdrun{_d} -nt {ntasks} -deffnm nvt
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1236,7 +1236,7 @@ do
 done
 
 echo "Constant volume equilibration complete."
-"""
+""".format(**self.fields_general)
 
     def get_npt(self):
         return """
@@ -1257,11 +1257,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt 4 -deffnm npt
+mdrun{_d} -nt {ntasks} -deffnm npt
 count=$[ 0 ]
 while [ ! -f npt.gro ]
 do
-    mdrun{_d} -nt 4 -deffnm npt
+    mdrun{_d} -nt {ntasks} -deffnm npt
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1271,7 +1271,7 @@ do
 done
 
 echo "Constant pressure equilibration complete."
-"""
+""".formst(**self.fields_general)
 
     def get_md(self):
         return """
@@ -1292,11 +1292,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt 4 -deffnm md
+mdrun{_d} -nt {ntasks} -deffnm md
 count=$[ 0 ]
 while [ ! -f md.gro ]
 do
-    mdrun{_d} -nt 4 -deffnm md
+    mdrun{_d} -nt {ntasks} -deffnm md
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1306,7 +1306,7 @@ do
 done
 
 echo "Production MD complete."
-"""
+""".format(**self.fields_general)
 
     def get_text(self, use_lbfgs=True, use_boxgen=False):
         text = self.get_header()
