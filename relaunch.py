@@ -67,6 +67,11 @@ def update_slurm(filename, cptname=None, ignore=None, resume=None,
             ignore_active = True
     output.close()
 
+def conv(string):
+    if string == None:
+        return None
+    return str(string)
+
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
 
@@ -127,11 +132,11 @@ USAGE
 #         inpat = args.include
 #         expat = args.exclude
         restore = args.restore
-        name = str(args.name)
-        ignore = str(args.ignore)
-        resume = str(args.resume)
-        time = str(args.time)
-        copy = str(args.copy)
+        name = conv(args.name)
+        ignore = conv(args.ignore)
+        resume = conv(args.resume)
+        time = conv(args.time)
+        copy = conv(args.copy)
         if not name.endswith(".cpt"):
             name += ".cpt"
 
