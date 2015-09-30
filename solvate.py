@@ -1134,6 +1134,7 @@ sleep 1
             " -nmol 6500 -maxsol 10000\n\n")
 
     def get_steep(self):
+        n = str(self.fields_general["ntasks"])
         return """
 #################################
 # ENERGY MINIMIZATION 1: STEEP  #
@@ -1155,10 +1156,10 @@ do
     fi
 done
 count=$[ 0 ]
-mdrun{_d} -nt {ntasks} -deffnm mins
+mdrun{_d} -nt """ + n + """ -deffnm mins
 while [ ! -f mins.gro ]
 do
-    mdrun{_d} -nt {ntasks} -deffnm mins
+    mdrun{_d} -nt """ + n + """ -deffnm mins
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1166,7 +1167,7 @@ do
         break
     fi
 done
-""".format(**self.fields_general)
+"""
 
     def get_lbfgs(self):
         return """
@@ -1204,6 +1205,7 @@ done
         name = "mins.gro"
         if lbfgs:
             name = "minl.gro"
+        n = str(self.fields_general["ntasks"])
         return """
 #####################
 # NVT EQUILIBRATION #
@@ -1222,11 +1224,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt {ntasks} -deffnm nvt
+mdrun{_d} -nt """ + n + """ -deffnm nvt
 count=$[ 0 ]
 while [ ! -f nvt.gro ]
 do
-    mdrun{_d} -nt {ntasks} -deffnm nvt
+    mdrun{_d} -nt """ + n + """ -deffnm nvt
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1236,9 +1238,10 @@ do
 done
 
 echo "Constant volume equilibration complete."
-""".format(**self.fields_general)
+"""
 
     def get_npt(self):
+        n = str(self.fields_general["ntasks"])
         return """
 #####################
 # NPT EQUILIBRATION #
@@ -1257,11 +1260,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt {ntasks} -deffnm npt
+mdrun{_d} -nt """ + n + """ -deffnm npt
 count=$[ 0 ]
 while [ ! -f npt.gro ]
 do
-    mdrun{_d} -nt {ntasks} -deffnm npt
+    mdrun{_d} -nt """ + n + """ -deffnm npt
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1271,9 +1274,10 @@ do
 done
 
 echo "Constant pressure equilibration complete."
-""".formst(**self.fields_general)
+"""
 
     def get_md(self):
+        n = str(self.fields_general["ntasks"])
         return """
 #################
 # PRODUCTION MD #
@@ -1292,11 +1296,11 @@ do
         break
     fi
 done
-mdrun{_d} -nt {ntasks} -deffnm md
+mdrun{_d} -nt """ + n + """ -deffnm md
 count=$[ 0 ]
 while [ ! -f md.gro ]
 do
-    mdrun{_d} -nt {ntasks} -deffnm md
+    mdrun{_d} -nt """ + n + """ -deffnm md
     count=$[ $count + 1 ]
     if [ "$count" -gt 5 ]
     then
@@ -1306,7 +1310,7 @@ do
 done
 
 echo "Production MD complete."
-""".format(**self.fields_general)
+"""
 
     def get_text(self, use_lbfgs=True, use_boxgen=False):
         text = self.get_header()
