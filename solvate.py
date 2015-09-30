@@ -16,6 +16,7 @@ import sys
 import os
 import math
 
+import mdp_template
 from argparse import ArgumentParser
 # from argparse import RawDescriptionHelpFormatters
 
@@ -821,79 +822,10 @@ continuation             = yes
 lincs-order              = 12
 """.format(lam=lam, fol=fol, mol=mol, cp1=cp1, cp2=cp2)
 
-class MakeMDP:
-
-    def __init__(self):
-        self.integrator = None
-        self.tinit = None
-        self.dt = None
-        self.nsteps = None
-        self.nstcomm = None
-        self.define = None
-        self.emtol = None
-        self.emstep = None
-        self.niter = None
-        self.nbfgscorr = None
-        self.nstxout = None
-        self.nstvout = None
-        self.nstfout = None
-        self.nstlog = None
-        self.nstenergy = None
-        self.nstxtcout = None
-        self.xtc_precision = None
-        self.nstlist = None
-        self.ns_type = None
-        self.pbc = None
-        self.rlist = None
-        self.coulombtype = None
-        self.rcoulomb = None
-        self.vdw_type = None
-        self.rvdw_switch = None
-        self.rvdw = None
-        self.DispCorr = None
-        self.fourierspacing = None
-        self.pme_order = None
-        self.ewald_rtol = None
-        self.epsilon_surface = None
-        self.optimize_fft = None
-        self.tcoupl = None
-        self.tc_grps = None
-        self.tau_t = None
-        self.ref_t = None
-        self.pcoupl = None
-        self.tau_p = None
-        self.compressibility = None
-        self.ref_p = None
-        self.free_energy = None
-        self.init_lambda = None
-        self.delta_lambda = None
-        self.foreign_lambda = None
-        self.sc_alpha = None
-        self.sc_power = None
-        self.sc_sigma = None
-        self.couple_moltype = None
-        self.couple_lambda0 = None
-        self.couple_lambda1 = None
-        self.couple_intramol = None
-        self.nstdhdl = None
-        self.gen_vel = None
-        self.gen_temp = None
-        self.gen_seed = None
-        self.constraints = None
-        self.constraint_algorithm = None
-        self.continuation = None
-        self.lincs_order = None
-        # comments
-        self.comment_coupling1 = None
-        self.comment_coupling2 = None
-        self.comment_coupling3 = None
-        self.comment_velocities1 = None
-        self.comment_constraints1 = None
-        self.comment_constraints2 = None
+class MakeMDP(mdp_template.MDP):
 
     def core(self):
-        # reset
-        self.__init__()
+        self.reset()
         # define
         self.ns_type = "grid"
         self.pbc = "xyz"
@@ -1069,286 +1001,6 @@ class MakeMDP:
         self.comment_constraints1 = ("Constrain the starting configuration")
         self.comment_constraints2 = ("since we are continuing from NPT")
         self.continuation = "yes "
-
-    def compile(self):
-        text = self.run_control()
-        text += self.em_criteria()
-        text += self.output_control()
-        text += self.neighborsearching()
-        text += self.electrostatics()
-        text += self.vanderWaals()
-        text += self.corrections()
-        text += self.pme_pppm()
-        text += self.coupling()
-        text += self.free_energy_control()
-        text += self.velocities()
-        text += self.bond_constraints()
-        return text
-
-    def run_control(self):
-        text = """; Run control
-"""
-        if self.integrator != None:
-            text += """integrator               = {0}
-""".format(self.integrator)
-        if self.tinit != None:
-            text += """tinit                    = {0}
-""".format(self.tinit)
-        if self.dt != None:
-            text += """dt                       = {0}
-""".format(self.dt)
-        if self.nsteps != None:
-            text += """nsteps                   = {0}
-""".format(self.nsteps)
-        if self.nstcomm != None:
-            text += """nstcomm                  = {0}
-""".format(self.nstcomm)
-        if self.define != None:
-            text += """define                   = {0}
-""".format(self.define)
-        return text
-
-    def em_criteria(self):
-        if ((self.emtol == None) and (self.emstep == None)
-            and (self.niter == None) and (self.nbfgscorr == None)):
-            return ""
-
-        text = """; EM criteria and other stuff
-"""
-        if self.emtol != None:
-            text += """emtol                    = {0}
-""".format(self.emtol)
-        if self.emstep != None:
-            text += """emstep                   = {0}
-""".format(self.emstep)
-        if self.niter != None:
-            text += """niter                    = {0}
-""".format(self.niter)
-        if self.nbfgscorr != None:
-            text += """nbfgscorr                = {0}
-""".format(self.nbfgscorr)
-        return text
-
-    def output_control(self):
-        text = """; Output control
-"""
-        if self.nstxout != None:
-            text += """nstxout                  = {0}
-""".format(self.nstxout)
-        if self.nstvout != None:
-            text += """nstvout                  = {0}
-""".format(self.nstvout)
-        if self.nstfout != None:
-            text += """nstfout                  = {0}
-""".format(self.nstfout)
-        if self.nstlog != None:
-            text += """nstlog                   = {0}
-""".format(self.nstlog)
-        if self.nstenergy != None:
-            text += """nstenergy                = {0}
-""".format(self.nstenergy)
-        if self.nstxtcout != None:
-            text += """nstxtcout                = {0}
-""".format(self.nstxtcout)
-        if self.xtc_precision != None:
-            text += """xtc-precision            = {0}
-""".format(self.xtc_precision)
-        return text
-
-    def neighborsearching(self):
-        text = """; Neighborsearching and short-range nonbonded interactions
-"""
-        if self.nstlist != None:
-            text += """nstlist                  = {0}
-""".format(self.nstlist)
-        if self.ns_type != None:
-            text += """ns_type                  = {0}
-""".format(self.ns_type)
-        if self.pbc != None:
-            text += """pbc                      = {0}
-""".format(self.pbc)
-        if self.rlist != None:
-            text += """rlist                    = {0}
-""".format(self.rlist)
-        return text
-
-    def electrostatics(self):
-        text = """; Electrostatics
-"""
-        if self.coulombtype != None:
-            text += """coulombtype              = {0}
-""".format(self.coulombtype)
-        if self.rcoulomb != None:
-            text += """rcoulomb                 = {0}
-""".format(self.rcoulomb)
-        return text
-
-    def vanderWaals(self):
-        text = """; van der Waals
-"""
-        if self.vdw_type != None:
-            text += """vdw-type                 = {0}
-""".format(self.vdw_type)
-        if self.rvdw_switch != None:
-            text += """rvdw-switch              = {0}
-""".format(self.rvdw_switch)
-        if self.rvdw != None:
-            text += """rvdw                     = {0}
-""".format(self.rvdw)
-        return text
-
-    def corrections(self):
-        text = """; Apply long range dispersion corrections for Energy and Pressure
-"""
-        if self.DispCorr != None:
-            text += """DispCorr                  = {0}
-""".format(self.DispCorr)
-        return text
-
-    def pme_pppm(self):
-        text = """; Spacing for the PME/PPPM FFT grid
-"""
-        if self.fourierspacing != None:
-            text += """fourierspacing           = {0}
-""".format(self.fourierspacing)
-        text += """; EWALD/PME/PPPM parameters
-"""
-        if self.pme_order != None:
-            text += """pme_order                = {0}
-""".format(self.pme_order)
-        if self.ewald_rtol != None:
-            text += """ewald_rtol               = {0}
-""".format(self.ewald_rtol)
-        if self.epsilon_surface != None:
-            text += """epsilon_surface          = {0}
-""".format(self.epsilon_surface)
-        if self.optimize_fft != None:
-            text += """optimize_fft             = {0}
-""".format(self.optimize_fft)
-        return text
-
-    def coupling(self):
-        text = ""
-        if self.comment_coupling1 != None:
-            text += """; {0}
-""".format(self.comment_coupling1)
-        if self.comment_coupling2 != None:
-            text += """; {0}
-""".format(self.comment_coupling2)
-        if self.tcoupl != None:
-            text += """tcoupl                   = {0}
-""".format(self.tcoupl)
-        if self.tc_grps != None:
-            text += """tc_grps                  = {0}
-""".format(self.tc_grps)
-        if self.tau_t != None:
-            text += """tau_t                    = {0}
-""".format(self.tau_t)
-        if self.ref_t != None:
-            text += """ref_t                    = {0}
-""".format(self.ref_t)
-
-        if self.comment_coupling3 != None:
-            text += """; {0}
-""".format(self.comment_coupling3)
-        if self.pcoupl != None:
-            text += """pcoupl                   = {0}
-""".format(self.pcoupl)
-        if self.tau_p != None:
-            text += """tau_p                    = {0}
-""".format(self.tau_p)
-        if self.compressibility != None:
-            text += """compressibility          = {0}
-""".format(self.compressibility)
-        if self.ref_p != None:
-            text += """ref_p                    = {0}
-""".format(self.ref_p)
-        return text
-
-    def free_energy_control(self):
-        text = """; Free energy control stuff
-"""
-        if self.free_energy != None:
-            text += """free_energy              = {0}
-""".format(self.free_energy)
-        if self.init_lambda != None:
-            text += """init_lambda              = {0}
-""".format(self.init_lambda)
-        if self.delta_lambda != None:
-            text += """delta_lambda             = {0}
-""".format(self.delta_lambda)
-        if self.foreign_lambda != None:
-            text += """foreign_lambda           = {0}
-""".format(self.foreign_lambda)
-        if self.sc_alpha != None:
-            text += """sc-alpha                 = {0}
-""".format(self.sc_alpha)
-        if self.sc_power != None:
-            text += """sc-power                 = {0}
-""".format(self.sc_power)
-        if self.sc_sigma != None:
-            text += """sc-sigma                 = {0}
-""".format(self.sc_sigma)
-        if self.couple_moltype != None:
-            text += """couple-moltype           = {0}
-""".format(self.couple_moltype)
-        if self.couple_lambda0 != None:
-            text += """couple-lambda0           = {0}
-""".format(self.couple_lambda0)
-        if self.couple_lambda1 != None:
-            text += """couple-lambda1           = {0}
-""".format(self.couple_lambda1)
-        if self.couple_intramol != None:
-            text += """couple-intramol          = {0}
-""".format(self.couple_intramol)
-        if self.nstdhdl != None:
-            text += """nstdhdl                  = {0}
-""".format(self.nstdhdl)
-        return text
-
-    def velocities(self):
-        text = ""
-        if self.comment_velocities1 != None:
-            text += """; {0}
-""".format(self.comment_velocities1)
-        if self.gen_vel != None:
-            text += """gen_vel                  = {0}
-""".format(self.gen_vel)
-        if self.gen_temp != None:
-            text += """gen_temp                 = {0}
-""".format(self.gen_temp)
-        if self.gen_seed != None:
-            text += """gen_seed                 = {0}
-""".format(self.gen_seed)
-        return text
-
-    def bond_constraints(self):
-        text = """; options for bonds
-"""
-        if self.constraints != None:
-            text += """constraints              = {0}
-""".format(self.constraints)
-        text += """; Type of constraint algorithm
-"""
-        if self.constraint_algorithm != None:
-            text += """constraint-algorithm     = {0}
-""".format(self.constraint_algorithm)
-
-        if self.comment_constraints1 != None:
-            text += """; {0}
-""".format(self.comment_constraints1)
-        if self.comment_constraints2 != None:
-            text += """; {0}
-""".format(self.comment_constraints2)
-        if self.continuation != None:
-            text += """continuation             = {0}
-""".format(self.continuation)
-        text += """; Highest order in the expansion of the constraint coupling matrix
-"""
-        if self.lincs_order != None:
-            text += """lincs-order              = {0}
-""".format(self.lincs_order)
-        return text
 
 class MakeSLURM:
 
@@ -1637,6 +1289,138 @@ def output(name, string):
     out = open(name, "w")
     out.write(string)
     out.close()
+
+def genscript(double=False, gromacs5=False, volume_control=False,
+        fixed_state=False, initial_weights=False, use_gibbs=True,
+        use_metro=True):
+    mdp = MakeMDP()
+
+    if double:
+        tau_t = 0.5
+        tau_p = 20.0
+        shake_tol = 1e-12
+    else:
+        tau_t = 1.0
+        tau_p = 5.0
+        shake_tol = 5e-6
+
+    # params
+    mdp.integrator = "md-vv"
+    mdp.tinit = "0"
+    mdp.dt = "0.002"
+    mdp.nsteps = "2500000   ; 5 ns"
+    mdp.comm_mode = "Linear"
+    mdp.nstcomm = "1"
+    mdp.nsttcouple = "1"  #
+    mdp.nstpcouple = "1"  #
+    # neighbors
+    mdp.nstlist = "10"
+    mdp.ns_type = "grid"
+    mdp.pbc = "xyz"
+    mdp.rlist = "1.2"
+    # output control
+    mdp.nstxout = "0"
+    mdp.nstvout = "0"
+    mdp.nstfout = "0"
+    mdp.nstlog = "500"
+    mdp.nstcalcenergy = "1"  #
+    mdp.nstenergy = "500"
+    if gromacs5:
+        mdp.nstxout_compressed = "500"  #
+        mdp.compressed_x_precision = "1000"  #
+    else:
+        mdp.nstxtcout = "500"
+        mdp.xtc_precision = "1000"
+    # interactions
+    mdp.cutoff_scheme = "group"  #
+    mdp.coulombtype = "PME"  #
+    mdp.coulomb_modifier = "Potential-Switch"  #
+    mdp.rcoulomb_switch = "0.88"  #
+    mdp.rcoulomb = "0.9"
+    mdp.vdw_type = "Cut-off"
+    mdp.vdw_modifier = "Potential-switch"  #
+    mdp.rvdw_switch = "0.85"
+    mdp.rvdw = "0.9"
+    mdp.DispCorr = "AllEnerPres"
+    mdp.fourierspacing = "0.12"
+    mdp.fourier_nx = "0"  #
+    mdp.fourier_ny = "0"  #
+    mdp.fourier_nz = "0"  #
+    mdp.pme_order = "4"
+    mdp.ewald_rtol = "1e-05"  #
+    mdp.ewald_geometry = "3d"  #
+    # bonds
+    mdp.constraints = "hbonds ; constrain bonds to hydrogen"
+    mdp.constraint_algorithm = "shake"
+    mdp.shake_tol = str(shake_tol)  #
+    # velocities
+    mdp.gen_vel = "yes"
+    mdp.gen_temp = "300.0 ; K"
+    mdp.gen_seed = "10200"
+    # coupling
+    mdp.tc_grps = "System"
+    mdp.tcoupl = "v-rescale"
+    mdp.tau_t = str(tau_t)
+    mdp.ref_t = "300.0"
+    if volume_control:
+        mdp.pcoupl = "no"
+    else:
+        mdp.pcoupl = "MTTK"
+        mdp.pcoupltype = "isotropic"  #
+        mdp.tau_p = str(tau_p)
+        mdp.compressibility = "4.5e-5 ; 1/bar"
+        mdp.ref_p = "1.0 ; bar"
+    # free energy
+    mdp.sc_alpha = "0.5"
+    mdp.couple_moltype = "TMP"
+    mdp.couple_lambda0 = "vdw-q"
+    mdp.couple_lambda1 = "none"
+    mdp.couple_intramol = "no"
+    mdp.fep_lambdas = ("[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" +
+        " 0.0 0.0 0.0 0.0 0.0]")  #
+    mdp.coul_lambdas = ("[0.0 0.3 0.5 1.0 1.0 1.0 1.0 1.0 1.0" +
+        " 1.0 1.0 1.0 1.0 1.0]")  #
+    mdp.vdw_lambdas = ("[0.0 0.0 0.0 0.0 0.1 0.2 0.3 0.4 0.5" +
+        " 0.6 0.7 0.8 0.9 1.0]")  #
+    mdp.symmetrized_transition_matrix = "yes"  #
+    mdp.nst_transition_matrix = "100000"  #
+    mdp.nstdhdl = "500"
+    if gromacs5:
+        mdp.dhdl_print_energy = "total"  #
+    else:
+        mdp.dhdl_print_energy = "yes"  #
+    if fixed_state:
+        mdp.free_energy = "yes"
+        mdp.init_lambda = "0"
+    else:
+        mdp.free_energy = "expanded"
+        mdp.init_lambda_state = "0"  #
+    # expanded ensemble
+    mdp.nstexpanded = "20"  #
+    mdp.lmc_stats = "wang-landau"  #
+    mdp.lmc_weights_equil = "wl-delta"  #
+    mdp.lmc_seed = "10200"  #
+    if use_gibbs and use_metro:
+        mdp.lmc_move = "metropolized-gibbs"  #
+        mdp.lmc_gibbsdelta = "-1"  #
+    elif use_gibbs:
+        mdp.lmc_move = "gibbs"
+        mdp.lmc_gibbsdelta = "-1"
+    elif use_metro:
+        mdp.lmc_move = "metropolis"
+    else:
+        mdp.lmc_move = "no"
+    if initial_weights:
+        mdp.init_lambda_weights = "[0.0000]"  #
+    else:
+        mdp.weight_equil_wl_delta = "0.001"  #
+    # monte carlo
+    mdp.wl_scale = "0.8"
+    mdp.wl_ratio = "0.8"
+    mdp.init_wl_delta = "0.50"
+    mdp.wl_oneovert = "yes"
+
+    return mdp
 
 def launch_meth():
     jobname = "lambda"
