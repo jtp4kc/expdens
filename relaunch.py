@@ -48,10 +48,8 @@ def update_slurm(filename, cptname=None, ignore=None, resume=None,
     output = open(path, 'w')
     for line in open(new, 'r'):
         line = line.rstrip()
-        if (ignore != None) and (ignore in line):
-            ignore_active = True
         if (resume != None) and (resume in line):
-            ignore_active = True
+            ignore_active = False
             if copyfile != None:
                 for copyline in open(copyfile, 'r'):
                     copyline = copyline.rstrip()
@@ -65,6 +63,8 @@ def update_slurm(filename, cptname=None, ignore=None, resume=None,
             if ("mdrun" in line) and (cptname != None):
                 line = line + " -cpi " + cptname
             output.write(line + "\n")
+        if (ignore != None) and (ignore in line):
+            ignore_active = True
     output.close()
 
 def main(argv=None):  # IGNORE:C0111
