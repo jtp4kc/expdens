@@ -1624,7 +1624,7 @@ def do_set(mdpgen, lam, fol, mol, coul1, coul2):
     mdpgen.couple_lambda0 = coul1
     mdpgen.couple_lambda1 = coul2
 
-def dos_set(mdpgen, lam, fol, mol, coup1, coup2, fep, vdw, coul):
+def dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul):
     mdpgen.init_lambda_state = lam
     mdpgen.couple_moltype = mol
     mdpgen.couple_lambda0 = coup1
