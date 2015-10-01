@@ -18,6 +18,7 @@ import math
 
 import mdp_template
 from argparse import ArgumentParser
+from mdp_template import MDP
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -1623,6 +1624,15 @@ def do_set(mdpgen, lam, fol, mol, coul1, coul2):
     mdpgen.couple_lambda0 = coul1
     mdpgen.couple_lambda1 = coul2
 
+def dos_set(mdpgen, lam, fol, mol, coup1, coup2, fep, vdw, coul):
+    mdpgen.init_lambda_state = lam
+    mdpgen.couple_moltype = mol
+    mdpgen.couple_lambda0 = coup1
+    mdpgen.couple_lambda1 = coup2
+    mdpgen.fep_lambdas = fep
+    mdpgen.vdw_lambdas = vdw
+    mdpgen.coul_lambdas = coul
+
 def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
         methylpyrrole=False):
     mdpgen.enermin_steep()
@@ -1650,6 +1660,36 @@ def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
     if methylpyrrole:
         mdpgen.modify_1meth(pcouple=True)
     do_set(mdpgen, lam, fol, mol, coul1, coul2)
+    output("md.mdp", mdpgen.compile())
+
+def array2(mdpgen, lam, mol, fep, coul, vdw, coup1="vdw-q",
+        coup2="none", lbfgs=False, methylpyrrole=False):
+
+    mdpgen.enermin_steep()
+    dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul)
+    output("em_steep.mdp", mdpgen.compile())
+
+    if lbfgs:
+        mdpgen.enermin_lbfgs()
+        dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul)
+        output("em_l-bfgs.mdp", mdpgen.compile())
+
+    mdpgen.equilibrate_nvt()
+    if methylpyrrole:
+        mdpgen.modify_1meth()
+    dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul)
+    output("nvt.mdp", mdpgen.compile())
+
+    mdpgen.equilibrate_npt()
+    if methylpyrrole:
+        mdpgen.modify_1meth(pcouple=True)
+    dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul)
+    output("npt.mdp", mdpgen.compile())
+
+    mdpgen.production_md()
+    if methylpyrrole:
+        mdpgen.modify_1meth(pcouple=True)
+    dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul)
     output("md.mdp", mdpgen.compile())
 
 def launch(skip=False):
@@ -1703,6 +1743,47 @@ def launch(skip=False):
         outtext = slurm.compile(os.path.join("..", grofile),
             os.path.join("..", topfile), lam, use_lbfgs=False)
         array(mdpgen, lam, fol, mol, methylpyrrole=True)
+        output("job.slurm", outtext)
+        os.system("sbatch job.slurm")
+        os.chdir("..")
+
+def launch_fep(skip=False):
+    jobname = "1methsolv"
+    topfile = "1meth.top"
+    grofile = "1meth.gro"
+    mol = "TMP"
+
+    mdpgen = MakeMDP()
+
+    if not skip:
+        os.system("python -u ~/git/expdens/gromod.py -n t41meth-in.gro" +
+            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
+        os.system("python -u ~/git/expdens/gromod.py -n t41meth-in.gro" +
+                " -o solvent.gro -i SOL -v -t water")
+        os.system("genbox -cp ligand.gro -cs solvent.gro" +
+                " -ci solvent.gro -p " + topfile + " -o " + grofile +
+                " -nmol 6500 -maxsol 10000")
+
+    coup1 = "vdw-q"
+    coup2 = "none"
+    coul = [0.0, 0.3, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        1.0, 1.0]
+    vdw = [0.0, 0.0, 0.0, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+        0.9, 1.0]
+    n = len(coul)
+    fep = [0.0] * n
+    for l in range(n):
+        lam = "{0:02}".format(l)
+        folder = jobname + "-" + lam
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        slurm = MakeSLURM(jobname, "-" + lam, ".")
+        slurm.double_precision = True
+        outtext = slurm.compile(os.path.join("..", grofile),
+            os.path.join("..", topfile), lam, use_lbfgs=False)
+        array2(mdpgen, l, mol, fep, coul, vdw, coup1, coup2,
+            methylpyrrole=True)
         output("job.slurm", outtext)
         os.system("sbatch job.slurm")
         os.chdir("..")
@@ -1800,6 +1881,8 @@ USAGE
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument('-s', '--skip', action='store_true',
             help="skip gromod")
+        parser.add_argument('-f', '--fep', action='store_true',
+            help="use fep explicitly")
         parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='*')
 
         # Process arguments
@@ -1825,7 +1908,10 @@ USAGE
             ### do something with inpath ###
             print(inpath)
 
-        launch(skip=args.skip)
+        if args.fep:
+            launch2(skip=args.skip)
+        else:
+            launch(skip=args.skip)
 
         return 0
     except KeyboardInterrupt:
