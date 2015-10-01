@@ -1076,7 +1076,7 @@ class MakeSLURM:
             os.path.join(workdir, job_name))
 
     def walltime(self):
-        return '{0}-{1:02}:{2:02}:{3:02}'.format(0, 12, 0, 0)
+        return '{0}-{1:02}:{2:02}:{3:02}'.format(3, 12, 0, 0)
 
     def get_header(self):
         fields = dict()
