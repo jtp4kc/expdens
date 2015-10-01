@@ -1909,7 +1909,7 @@ USAGE
             print(inpath)
 
         if args.fep:
-            launch2(skip=args.skip)
+            launch_fep(skip=args.skip)
         else:
             launch(skip=args.skip)
 
