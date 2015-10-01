@@ -1625,13 +1625,23 @@ def do_set(mdpgen, lam, fol, mol, coul1, coul2):
     mdpgen.couple_lambda1 = coul2
 
 def dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul):
+    mdpgen.delta_lambda = None
+    mdpgen.foreign_lambda = None
+    mdpgen.init_lambda = None
     mdpgen.init_lambda_state = lam
     mdpgen.couple_moltype = mol
     mdpgen.couple_lambda0 = coup1
     mdpgen.couple_lambda1 = coup2
-    mdpgen.fep_lambdas = fep
-    mdpgen.vdw_lambdas = vdw
-    mdpgen.coul_lambdas = coul
+    mdpgen.fep_lambdas = "["
+    mdpgen.vdw_lambdas = "["
+    mdpgen.coul_lambdas = "["
+    for (f, v, c) in zip(fep, vdw, coul):
+        mdpgen.fep_lambdas += "{0:0.2f} ".format(f)
+        mdpgen.vdw_lambdas += "{0:0.2f} ".format(v)
+        mdpgen.coul_lambdas += "{0:0.2f} ".format(c)
+    mdpgen.fep_lambdas += "]"
+    mdpgen.vdw_lambdas += "]"
+    mdpgen.coul_lambdas += "]"
 
 def array(mdpgen, lam, fol, mol, coul1="vdw", coul2="none", lbfgs=False,
         methylpyrrole=False):
