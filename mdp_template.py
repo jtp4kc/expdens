@@ -103,6 +103,7 @@ class MDP:
         self.init_lambda = None
         self.delta_lambda = None
         self.foreign_lambda = None
+        self.calc_lambda_neighbors = None
         self.sc_alpha = None
         self.sc_power = None
         self.sc_sigma = None
@@ -365,6 +366,7 @@ class MDP:
                    ("init_lambda", self.init_lambda),
                    ("delta_lambda", self.delta_lambda),
                    ("foreign_lambda", self.foreign_lambda),
+                   ("calc-lambda-neighbors", self.calc_lambda_neighbors),
                    ("sc-alpha", self.sc_alpha),
                    ("sc-power", self.sc_power),
                    ("sc-sigma", self.sc_sigma),

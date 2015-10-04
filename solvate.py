@@ -1629,6 +1629,7 @@ def dos_set(mdpgen, lam, mol, coup1, coup2, fep, vdw, coul):
     mdpgen.foreign_lambda = None
     mdpgen.init_lambda = None
     mdpgen.init_lambda_state = lam
+    mdpgen.calc_lambda_neighbors = "-1"
     mdpgen.couple_moltype = mol
     mdpgen.couple_lambda0 = coup1
     mdpgen.couple_lambda1 = coup2
