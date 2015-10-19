@@ -12,6 +12,7 @@ import math
 import backup
 from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
+import job_save
 
 verbose = 0
 SAVE_LIBRARY = {}
@@ -226,30 +227,8 @@ def option_defaults():
 # provide custom default library
 param.option_defaults = option_defaults
 
-class SaveKeys(Keys):
-
-    def __init__(self):
-        Keys.__init__(self)
-        self.name = "_save-name"
-        self.jobs = "sim-job-tuples"
-        self.files = "sim-files"
-        self.folders = "sim-folder-tuples"
-
-        self.add_keys("", self.jobs, self.files, self.folders)
-
-save_keys = SaveKeys()
-saver = Parameters(save_keys)
-
-def save_defaults():
-    options = dict()
-
-    options[save_keys.jobs] = []
-    options[save_keys.files] = []
-    options[save_keys.folders] = []
-
-    return options
-
-saver.option_defaults = save_defaults
+save_keys = job_save.SaveKeys()
+saver = job_save.SaveJobs()
 
 #################################################################################
 #################################################################################
@@ -938,7 +917,7 @@ def generate(opts):
     xvg_files = []
 
     for i in range(opts[KEYS.mdr_count]):
-        suffix = '_{0:0>2}'.format(i)
+        suffix = '-{0:0>2}'.format(i)
         if opts[KEYS.mdr_count] < 2:
             suffix = ''
 
@@ -1040,9 +1019,9 @@ def generate(opts):
             tpr_files.append(os.path.join(folder, job_name + ".tpr"))
             xtc_files.append(os.path.join(folder, job_name + ".xtc"))
             if move_gro:
-                gro_files.append(os.path.join(folder, gro_in + ".gro"))
+                gro_files.append(os.path.join(folder, gro_in + "-in.gro"))
             else:
-                gro_files.append(os.path.join(gro_in + ".gro"))
+                gro_files.append(os.path.join(gro_in + "-in.gro"))
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
@@ -1060,6 +1039,7 @@ def generate(opts):
             SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
 
     if submit:
+        os.chdir(dir_)
         # Create analysis options file
         num_coup = opts[KEYS.sim_genxcoupled]
         num_uncp = opts[KEYS.sim_genxuncupld]
@@ -1335,7 +1315,7 @@ def gen_array(opts):
             if not os.path.exists(xtc_name):
                 raise Exception('Simulation files not found ' + xtc_name +
                     ' and/or ' + tpr_name)
-            cmnd = ('echo "System" | trjconv_d -f {xtc} -s {tpr} -o {gro}' +
+            cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
                 ' -b {timeb} -e {timee} &>../trjconv{index}.log')
             segments = (opts[KEYS.mdr_count] - 1)
             if segments == 0:
@@ -1612,7 +1592,7 @@ def main(argv=None):
         save_name = options.save
 
     global SAVE_LIBRARY
-    SAVE_LIBRARY = save_defaults()
+    SAVE_LIBRARY = job_save.save_defaults()
 
     do_output = False
     if isinstance(opt_list, list):
