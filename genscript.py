@@ -1330,7 +1330,7 @@ def gen_array(opts):
                 os.environ['PATH'] = os.environ['PATH'] + ':' + os.environ['GMXBIN']
 
             for i in range(segments + 1):
-                suffix = '_{0:0>2}'.format(i)
+                suffix = '-{0:0>2}'.format(i)
                 step_num = math.floor(i * spacing)  # evenly spaced frames
                 timeps = step_num * opts[KEYS.sim_dt]
                 # print("ps:" + str(timeps))
