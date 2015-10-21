@@ -1147,9 +1147,9 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     coul_lambdas = ''
     vdw_lambdas = ''
     for f, c, v in zip(fep, coul, vdw):
-        fep_lambdas += '{0:0.1f} '.format(f)
-        coul_lambdas += '{0:0.1f} '.format(c)
-        vdw_lambdas += '{0:0.1f} '.format(v)
+        fep_lambdas += '{0:0.2f} '.format(f)
+        coul_lambdas += '{0:0.2f} '.format(c)
+        vdw_lambdas += '{0:0.2f} '.format(v)
 
     wl_weights = ''
     if opts[KEYS.sim_weights]:
