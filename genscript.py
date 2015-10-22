@@ -598,6 +598,8 @@ nstcomm                  = 1
 ;comm-grps                = 
 nsttcouple               = 1
 nstpcouple               = 1
+; preprocessing
+include                  = -I$HOME/gromacs/itp/
 """.format(**fields)
         return self.params
 

@@ -24,6 +24,7 @@ class MDP:
         self.nstcomm = None
         self.comm_grps = None
         self.define = None
+        self.include = None
         #################################
         # energy minimization criteria
         #--------------------------------
@@ -225,7 +226,8 @@ class MDP:
                    ("comm-mode", self.comm_mode),
                    ("nstcomm", self.nstcomm),
                    ("comm-grps", self.comm_grps),
-                   ("define", self.define)]
+                   ("define", self.define),
+                   ("include", self.include)]
 
         if self.check_empty(varlist):
             return ""

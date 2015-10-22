@@ -300,6 +300,17 @@ class Gro:
             atom.atomn = count
         self.atom_count = count
 
+    def residue_order(self):
+        residues = {}
+        for atom in self.atoms:
+            if not atom.resid in residues:
+                residues[atom.resid] = []
+            residues[atom.resid].append(atom)
+        res_ids = residues.keys()
+        self.atoms = []
+        for resid in sorted(res_ids):
+            self.atoms.extend(residues[resid])
+
     def resize(self, image_distance):
         # rhombic dodecahedron
         self.box.reset()
@@ -352,12 +363,41 @@ def do_isolate(gro, resname):
     gro.renumber()
     return gro
 
+def do_insert(gro, ins=None, omit=None):
+    newlist = []
+    found = False
+    resnum = -1
+    if omit == None:
+        newlist = gro.atoms
+    else:
+        for atom in gro.atoms:
+            if (atom.resname == omit) or (str(atom.resid) == omit):
+                if not found:
+                    resnum = atom.resid
+                    found = True
+            if atom.resid != resnum:
+                newlist.append(atom)
+    if ins != None:
+        newlist.extend(ins.atoms)
+    gro.atoms = newlist
+    gro.residue_order()
+    gro.renumber()
+    return gro
+
 def do_shrink(gro, cutoff, exclude):
     filtered = []
+    first_excl = []
     # ignore residues, if desired
+    first = 0
     for atom in gro.atoms:
         if (not atom.resid in exclude) and (not atom.resname in exclude):
             filtered.append(atom)
+        elif first == 0:
+            first = atom.resid
+        if atom.resid == first:
+            first_excl.append(atom)
+    if len(filtered) == 0:  # in case we exclude everything
+        filtered = first_excl
     # find geometric center
     total = Vector()
     number = len(filtered)
@@ -424,6 +464,8 @@ def modify(args):
     out_filename = args.output
     isolate = args.isolate
     shrink = args.shrink
+    addgro = args.add
+    omit = args.omit
     exclude = []
     cutoff = float(args.cutoff)
     title = args.title
@@ -445,10 +487,27 @@ def modify(args):
 
     if isolate != None:
         gro = do_isolate(gro, isolate)
+        if verbose > 1:
+            print("Isolated " + str(len(gro.atoms)) + " atom entries")
+    if (addgro != None) or (omit != None):
+        ins = None
+        if (omit != None) and (verbose > 1):
+            print("Removing res " + omit + " file")
+        if addgro != None:
+            ins = read_gro(addgro)
+            if verbose > 1:
+                print("Read: " + str(ins.title))
+                print("Found " + str(len(ins.atoms)) + " atom entries")
+                print("Adding to current gro structure")
+        gro = do_insert(gro, ins, omit)
     if shrink:
         gro = do_shrink(gro, cutoff, exclude)
+        if verbose > 1:
+            print("New volume after shrink: " + str(gro.box.volume()))
     if move != None:
         gro = do_move(gro, move, offset, isolate)
+        if verbose > 1:
+            print("Offset applied.")
     if title != None:
         gro.title = title
 
@@ -456,6 +515,7 @@ def modify(args):
         print("Output: " + str(gro.title))
         print("Writing " + str(len(gro.atoms)) + " atom entries")
         print("Volume of new gro: " + str(gro.box.volume()))
+        print("To file " + os.path.realpath(out_filename))
     write_gro(out_filename, gro)
 
 def main(argv=None):  # IGNORE:C0111
@@ -511,6 +571,12 @@ USAGE
             help="shrink the gro box to fit the contents" +
             "using the general rule for periodic interactions" +
             " (2xCutoff + Width) [default: %(default)s]")
+        parser.add_argument('-a', "--add", default=None,
+            help="name of a file to merge with this one - can be used" +
+            " to replace residues, etc. Note: does not renumber residues." +
+            " [default: %(default)s]")
+        parser.add_argument('-k', "--omit", default=None,
+            help="residue name or id to remove from file [default: %(default)s]")
         parser.add_argument('-e', "--exclude", default=["SOL", "CL-"],
             help="ignore these residues unless requested elsewhere," +
             " can be number or name [default: %(default)s]",
