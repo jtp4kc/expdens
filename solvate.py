@@ -1045,7 +1045,7 @@ class MakeMDP(mdp_template.MDP):
         self.shake_tol = str(shake_tol)  #
         # coupling
         self.tc_grps = "System"
-        self.tcoupl = "v-rescale"
+        self.tcoupl = "Nose-Hoover"  # don't use MTTK with v-rescale
         self.tau_t = str(tau_t)
         self.ref_t = "300.0"
         if pcouple:

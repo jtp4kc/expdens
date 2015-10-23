@@ -599,7 +599,7 @@ nstcomm                  = 1
 nsttcouple               = 1
 nstpcouple               = 1
 ; preprocessing
-include                  = -I$HOME/gromacs/itp/
+include                  = -I/nv/blue/jtp4kc/gromacs/itp/
 """.format(**fields)
         return self.params
 
