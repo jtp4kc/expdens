@@ -95,13 +95,11 @@ class TopItem():
         self.data = {}
 
     def parse(self, line):
-        print("Parsing: '" + line + "'")
         info = line.split()
         cid = 0
         for datum in info:
             cid += 1
             self.data[cid] = datum
-        print("Data: " + str(self.data))
 
     def output(self):
         out = ""
@@ -302,7 +300,7 @@ def read_top(top_filename):
                 top.comments[cat] = current
                 current = []
                 cat = category
-        elif not line.isspace():
+        elif not (line.isspace() or line == ""):
             if cat == categories[0]:
                 top.add_atom(line)
             elif cat == categories[1]:
