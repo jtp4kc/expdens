@@ -95,11 +95,13 @@ class TopItem():
         self.data = {}
 
     def parse(self, line):
+        print("Parsing: " + line)
         info = line.split()
         cid = 0
         for datum in info:
             cid += 1
             self.data[cid] = datum
+        print("Data: " + str(self.data))
 
     def output(self):
         out = ""
