@@ -262,7 +262,7 @@ class Top:
     def add_dihedral(self, line):
         dihedral = Dihedral()
         dihedral.parse(line)
-        self.dihedral.append(dihedral)
+        self.dihedrals.append(dihedral)
 
     def renumber(self):
         count = 0
