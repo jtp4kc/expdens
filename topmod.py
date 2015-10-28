@@ -105,8 +105,7 @@ class TopItem():
         out = ""
         n = max(self.data.keys())
         for i in range(1, n + 1):
-            out += self.data[i]
-            out += " "
+            out += "{0:4s} ".format(self.data[i])
         return out
 
 class Atom(TopItem):
