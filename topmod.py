@@ -311,6 +311,8 @@ def read_top(top_filename):
                 top.add_angle(line)
             elif cat == categories[4]:
                 top.add_dihedral(line)
+    if current:
+        top.comments[cat] = current
 
     atoms = {}
     for atom in top.atoms:
@@ -340,7 +342,9 @@ def write_top(top_filename, top):
     output = open(top_filename, 'w')
 
     def _format(topitems, category):
-        comments = top.comments[category]
+        comments = []
+        if category in top.comments:
+            comments = top.comments[category]
         output.write("[ {0} ]\n".format(category))
         for cmnt in comments:
             output.write(cmnt + "\n")
