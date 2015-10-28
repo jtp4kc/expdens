@@ -343,7 +343,7 @@ def write_top(top_filename, top):
         comments = top.comments[category]
         output.write("[ {0} ]\n".format(category))
         for cmnt in comments:
-            output.write(cmnt.output() + "\n")
+            output.write(cmnt + "\n")
         for item in topitems:
             output.write(item.output() + "\n")
 
