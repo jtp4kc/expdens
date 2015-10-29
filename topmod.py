@@ -316,8 +316,7 @@ def write_top(top_filename, top):
         elif cat == categories[4]:
             _format(top.dihedrals, cat)
         else:
-            for entry in top.comments[cat]:
-                output.write(entry + "\n")
+            _format([], cat)
     output.close()
 
 def modify(args):
