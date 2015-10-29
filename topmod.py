@@ -37,58 +37,6 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-class Vector():
-
-    def __init__(self):
-        self.x = 0
-        self.y = 0
-        self.z = 0
-
-    def magnitude(self):
-        return math.sqrt(self.x ** 2 + self.y ** 2 + self.z ** 2)
-
-    def scale(self, scalar, make_new_return=True):
-        result = self
-        if make_new_return:
-            result = Vector()
-        result.x = self.x * scalar
-        result.y = self.y * scalar
-        result.z = self.z * scalar
-        return result
-
-    def plus(self, vec, make_new_return=True):
-        add = self
-        if make_new_return:
-            add = Vector()
-        add.x = self.x + vec.x
-        add.y = self.y + vec.y
-        add.z = self.z + vec.z
-        return add
-
-    def minus(self, vec, make_new_return=True):
-        sub = self
-        if make_new_return:
-            sub = Vector()
-        sub.x = self.x - vec.x
-        sub.y = self.y - vec.y
-        sub.z = self.z - vec.z
-        return sub
-
-    def dot(self, vec):
-        return self.x * vec.x + self.y * vec.y + self.z * vec.z
-
-    def cross(self, vec, make_new_return=True):
-        x = self.y * vec.z - self.z * vec.y
-        y = -self.x * vec.z + self.z * vec.x
-        z = self.x * vec.y - self.y * vec.x
-        prod = self
-        if make_new_return:
-            prod = Vector()
-        prod.x = x
-        prod.y = y
-        prod.z = z
-        return prod
-
 class TopItem():
 
     def __init__(self):
@@ -236,6 +184,7 @@ class Top:
         self.pairs = []
         self.angles = []
         self.dihedrals = []
+        self.categories = []
         self.comments = {}
 
     def add_atom(self, line):
@@ -299,6 +248,7 @@ def read_top(top_filename):
                 top.comments[cat] = current
                 current = []
                 cat = category
+                top.categories.append(cat)
         elif not (line.isspace() or line == ""):
             if cat == categories[0]:
                 top.add_atom(line)
@@ -310,6 +260,8 @@ def read_top(top_filename):
                 top.add_angle(line)
             elif cat == categories[4]:
                 top.add_dihedral(line)
+            else:
+                current.append(line)
     if current:
         top.comments[cat] = current
 
@@ -352,11 +304,20 @@ def write_top(top_filename, top):
 
     for entry in top.comments["pre"]:
         output.write(entry + "\n")
-    _format(top.atoms, categories[0])
-    _format(top.bonds, categories[1])
-    _format(top.pairs, categories[2])
-    _format(top.angles, categories[3])
-    _format(top.dihedrals, categories[4])
+    for cat in top.categories:
+        if cat == categories[0]:
+            _format(top.atoms, cat)
+        elif cat == categories[1]:
+            _format(top.bonds, cat)
+        elif cat == categories[2]:
+            _format(top.pairs, cat)
+        elif cat == categories[3]:
+            _format(top.angles, cat)
+        elif cat == categories[4]:
+            _format(top.dihedrals, cat)
+        else:
+            for entry in top.comments[cat]:
+                output.write(entry + "\n")
     output.close()
 
 def modify(args):
