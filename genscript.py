@@ -15,7 +15,6 @@ from param_versions.version_2_0 import Keys
 import job_save
 
 verbose = 0
-SAVE_LIBRARY = {}
 POST_COMMANDS = []  #
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
@@ -227,7 +226,6 @@ def option_defaults():
 # provide custom default library
 param.option_defaults = option_defaults
 
-save_keys = job_save.SaveKeys()
 saver = job_save.SaveJobs()
 
 #################################################################################
@@ -250,81 +248,6 @@ class FilesystemImpactRegister:
         fir.files_removed.extend(self.files_removed)
         fir.files_removed.extend(other_FIR.files_removed)
         return fir
-
-class FileScan:
-
-    def __init__(self, path):
-        self.filepath = path
-        self.oldscan = []
-        self.newscan = []
-        self.weights = None
-        self.num_of_steps = None
-        self.finish_detected = False
-        self.cancel_detected = False
-        self.failure_detected = False
-        self.fail_statement = ""
-
-    def scan(self):
-        if not os.path.exists(self.filepath):
-            raise Exception('Simulation file not found ' + self.filepath)
-        import subprocess
-        file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='fso', dir='.')
-        subprocess.call(["tail", "-500", self.filepath], stdout=file_)
-
-        capture_fail = False
-        file_.seek(0)  # reset to be able to read
-        for line in file_:
-            if capture_fail:
-                capture_fail = False
-                self.fail_statement = line
-            if 'Step' in line and 'Time' in line and 'Lambda' in line:
-                self.oldscan = self.newscan
-                self.newscan = []
-            if 'Received the TERM signal' in line:
-                self.cancel_detected = True
-            if 'Fatal error:' in line:
-                self.failure_detected = True
-                capture_fail = True
-            if 'Finished mdrun' in line:
-                self.finish_detected = True
-            self.newscan.append(line)
-        file_.close()
-        if not (self.newscan or self.oldscan):
-            raise Exception('Tail command appears to have failed.')
-
-        # assume a short scan indicates the file was cut off
-        #     which could get fooled by dumping the state matrix, but it's only
-        #     one frame off
-        if len(self.oldscan) > len(self.newscan):
-            self.newscan = self.oldscan
-
-        count = 0
-        capture_weights = False
-        for line in self.newscan:
-            count += 1
-            if count == 2:
-                splt = line.split()
-                if splt:
-                    try:
-                        self.num_of_steps = int(splt[0])
-                    except Exception as e:
-                        tb = sys.exc_info()[2]
-                        print(tb + ":" + str(e))
-            if line.isspace():
-                capture_weights = False
-            if capture_weights:
-                splt = line.split()
-                weight = float(splt[5])
-                self.weights.append(weight)
-            if 'N' in line and 'Count' in line and 'G(in kT)' in line:
-                capture_weights = True
-                self.weights = []
-
-    def get_wanglandau_weights(self):
-        return self.weights
-
-    def get_step_number(self):
-        return self.num_of_steps
 
 class SlurmGen:
 
@@ -879,17 +802,17 @@ class BEPGen:
     def write(self, file_name):
         BEPGen.params.write_options(file_name, self.fields_output)
 
-def submit_slurm(slurm_file, job, doprint=True):
+def submit_slurm(slurm_path, jobname, doprint=True):
     import subprocess
     file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", slurm_file], stdout=file_)
+    subprocess.call(["sbatch", slurm_path], stdout=file_)
     file_.seek(0)  # reset to be able to read
     line = file_.readline().replace("\n", "")
     file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
     if doprint:
         print(line)
-        print("Sbatch'd Job " + job + " as job #" + num)
+        print("Sbatch'd Job " + jobname + " as jobname #" + num)
     return num
 
 def generate(opts):
@@ -1028,17 +951,17 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 num = submit_slurm(file_name, job_name + suffix)
-                global SAVE_LIBRARY
-                SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
+#                 global SAVE_LIBRARY
+#                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
-        global SAVE_LIBRARY
-        jname = job_name + suffix
-        SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
-        SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
-        if submit:
-            SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
+#         global SAVE_LIBRARY
+#         jname = job_name + suffix
+#         SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
+#         SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
+#         if submit:
+#             SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
 
     if submit:
         os.chdir(dir_)
@@ -1084,7 +1007,7 @@ def generate(opts):
         filepath = os.path.realpath(filename)
         analysis.write(filepath)
 
-        SAVE_LIBRARY[save_keys.files].append(filepath)
+#         SAVE_LIBRARY[save_keys.files].append(filepath)
 
     os.chdir(fir.cwd)
     return fir
@@ -1217,7 +1140,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     file_ = open(file_name, 'w')
     file_.write(builder.compile())
     file_.close()
-    SAVE_LIBRARY[save_keys.files].append(file_name)
+#     SAVE_LIBRARY[save_keys.files].append(file_name)
 
     os.chdir(cur_dir)
     return True
@@ -1258,7 +1181,7 @@ def gen_rand(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-equil'))
             file_name = '{0}-equil.log'.format(opts[KEYS.job_name])
 
-            logscan = FileScan(file_name)
+            logscan = job_save.LogScan(file_name)
             logscan.scan()
             weights = logscan.get_wanglandau_weights()
             opts[KEYS.sim_weight_values] = weights
@@ -1303,7 +1226,7 @@ def gen_array(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
             file_name = '{0}-rand.log'.format(opts[KEYS.job_name])
 
-            logscan = FileScan(file_name)
+            logscan = job_save.LogScan(file_name)
             logscan.scan()
             num_of_steps = logscan.get_step_number()
             # print("ns:" + str(num_of_steps))
@@ -1380,7 +1303,7 @@ def sim_status(save_lib):
         shakecount = 0
         step = 0
         if os.path.exists(logfile):
-            scan = FileScan(logfile)
+            scan = job_save.LogScan(logfile)
             try:
                 scan.scan()
                 step = scan.get_step_number()
@@ -1593,8 +1516,8 @@ def main(argv=None):
     if options.save:
         save_name = options.save
 
-    global SAVE_LIBRARY
-    SAVE_LIBRARY = job_save.save_defaults()
+#     global SAVE_LIBRARY
+#     SAVE_LIBRARY = job_save.save_defaults()
 
     do_output = False
     if isinstance(opt_list, list):

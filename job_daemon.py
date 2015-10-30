@@ -14,10 +14,10 @@ job_daemon -- monitors, restarts, and gives updates on running jobs on Rivanna
 import sys
 import os
 import math
-import backup
-from param_versions.version_2_0 import Parameters
-from param_versions.version_2_0 import Keys
 import job_save
+import traceback
+import time
+import datetime
 
 from argparse import ArgumentParser
 # from argparse import RawDescriptionHelpFormatters
@@ -41,7 +41,15 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-def submit_slurm(jobname, command):
+class Attr():
+    def __init__(self):
+        self.NUM_STEPS = "num_of_steps"
+        self.OLD_STEPS = "oldnum_steps"
+        self.STATUS = "run_status"
+        self.TIME = "last_checked"
+ATTR = Attr()
+
+def submit_self(jobname, command):
     fields = dict()
     fields['job-name'] = jobname
     fields['partition'] = 'serial'
@@ -78,16 +86,108 @@ diagnostics
 
 def reschedule(savefilename, pathtohere):
     cmd = "python " + pathtohere + " --save " + savefilename
-    submit_slurm(cmd)
+    submit_self(cmd)
+
+def _filename(entry, key, index=0):
+    filename = entry.files[key]
+    if isinstance(filename, list):
+        filename = filename[index]
+    else:
+        filename = str(filename)
+    return filename
+
+def timecheck(entry):
+    mindelta = 60 * 10  # ten minutes
+    timestamp = job_save.SerialDate.deserialize(entry.attr[ATTR.TIME])
+    currenttime = datetime.datetime.now()
+    relative = currenttime - timestamp
+    while relative.total_seconds() < mindelta:
+        entryname = entry.name
+        timetosleep = mindelta - relative.total_seconds()
+        print("Sleep " + str(timetosleep) + "s to wait for entry " + entryname)
+        print("\tasleep at " + str(datetime.datetime.now()))
+        time.sleep(timetosleep)
+        currenttime = datetime.datetime.now()
+        print("\tawake at " + str(currenttime))
+        relative = currenttime - timestamp
+    entry.attr[ATTR.TIME] = job_save.SerialDate.serialize(currenttime)
+
+def check_log(entry):
+    logfile = _filename(entry, "log")
+    logscan = job_save.LogScan(logfile)
+    logscan.scan()
+    if ATTR.NUM_STEPS in entry.attr:
+        entry.attr[ATTR.OLD_STEPS] = entry.attr[ATTR.NUM_STEPS]
+    else:
+        entry.attr[ATTR.OLD_STEPS] = 0
+    entry.attr[ATTR.NUM_STEPS] = logscan.get_step_number()
+    return logscan
+
+def check_errors(entry, logscan):
+    outfile = _filename(entry, "out")
+    outscan = job_save.OutputScan(outfile)
+    outscan.scan()
+    errors = []
+
+    # error = (name, status, message)
+    errors.append(("Warning", outscan.warning_detected, outscan.warn_statement))
+    errors.append(("Finished", logscan.finish_detected, ""))
+    errors.append(("Cancelled", logscan.cancel_detected or
+                   outscan.cancel_detected, outscan.cancel_statement))
+    errors.append(("Fault", outscan.fault_detected, outscan.fault_statement))
+    errors.append(("Failed", logscan.failure_detected, logscan.fail_statement))
+    return errors
+
+def check_resubmit(entry, errors):
+    # a fault should always restart from old cpt, in the hopes that it won't
+    #    fault again
+    # a cancel should only restart if it was due to time limit, since the job
+    #    should reasonably still be able to run, run from current cpt
+    # warnings don't require action
+    # finish means the job should be removed from the daemon's list, after eval
+    # a failure is non-recoverable, in almost all cases
+
+    rsc_cpt = False
+    rsc_old = False
+    status = "Running"
+    for (ename, state, message) in errors:
+        if state:
+            status = ename
+            if status == "Cancelled":
+                if "due to time limit" in message:
+                    rsc_cpt = True
+            if status == "Failed":
+                rsc_old = True
+
+    entry.attr[ATTR.STATUS] = status
+    return status, rsc_old, rsc_cpt
 
 def daemon(savefilename):
-    keys = job_save.SaveKeys()
-    reader = job_save.SaveJobs()
-    jobs = reader.parse_options(savefilename)
+    savemgr = job_save.SaveJobs()
+    savemgr.load(savefilename)
 
-    job_entry = 
-    if not isinstance(jobs, list):
-        jobs = [jobs]
+    daemon_cancel = False
+    entries = savemgr.get_jobs()
+    if not entries:
+        daemon_cancel = True
+
+    while not daemon_cancel:
+        savemgr.save(savefilename)
+        for entry in entries:
+            timecheck(entry)
+            try:
+                # get log progress
+                logscan = check_log(entry)
+                # evaluate errors
+                error_list = check_errors(entry, logscan)
+                # change and resubmit if needed
+                (status, oldcpt, cpt) = check_resubmit(entry, error_list)
+
+
+            except Exception as e:
+                traceback.print_exc()
+                print("Error occurred while processing job " + entry.jobname)
+                print(e)
 
         # what should the daemon do for each job?
         #    check log to get progress
@@ -98,7 +198,7 @@ def daemon(savefilename):
         #    copy log, xtc, tpr, and xvg to alternate location
         #    process xtc, using visualizer to produce vmd markup
         #    run alchemical analysis to look at weights
-        #    
+        #
         # at end of each cycle, print a summary file showing status of each
         #    job, such as progress, errors/resets, etc
         # if anything is strange, such as temp, pressure, etc, produce error
@@ -140,7 +240,7 @@ USAGE
         parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version',
             version=program_version_message)
-        parser.add_argument('-s', '--save', help="(requirred) File generated" +
+        parser.add_argument('-s', '--save', help="(required) File generated" +
             " by run of genscript, which indicates the files that were" +
             " generated by that run. These jobs are the ones that will be" +
             " monitored and analyzed.")

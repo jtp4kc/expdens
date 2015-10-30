@@ -128,6 +128,7 @@ class MDP:
         self.lmc_weights_equil = None
         self.lmc_seed = None
         self.lmc_move = None
+        self.lmc_gibbsdelta = None
         self.init_lambda_weights = None
         self.weight_equil_wl_delta = None
         #################################
@@ -399,6 +400,7 @@ class MDP:
                    ("lmc-weights-equil", self.lmc_weights_equil),
                    ("lmc-seed", self.lmc_seed),
                    ("lmc-move", self.lmc_move),
+                   ("lmc-gibbsdelta", self.lmc_gibbsdelta),
                    ("init-lambda=weights", self.init_lambda_weights),
                    ("weight-equil-wl-delta", self.weight_equil_wl_delta)]
 

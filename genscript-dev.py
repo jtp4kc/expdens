@@ -13,9 +13,12 @@ import backup
 from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
 import job_save
+import mdp_template
+import slurm_template
+from scipy.linalg.decomp_schur import feps
+from statsmodels.sandbox.nonparametric.tests.ex_smoothers import weights
 
 verbose = 0
-SAVE_LIBRARY = {}
 POST_COMMANDS = []  #
 SUBS = dict()  # available subcommands, as a dictionary
 def _subcomment():
@@ -227,7 +230,6 @@ def option_defaults():
 # provide custom default library
 param.option_defaults = option_defaults
 
-save_keys = job_save.SaveKeys()
 saver = job_save.SaveJobs()
 
 #################################################################################
@@ -251,102 +253,29 @@ class FilesystemImpactRegister:
         fir.files_removed.extend(other_FIR.files_removed)
         return fir
 
-class FileScan:
-
-    def __init__(self, path):
-        self.filepath = path
-        self.oldscan = []
-        self.newscan = []
-        self.weights = None
-        self.num_of_steps = None
-        self.finish_detected = False
-        self.cancel_detected = False
-        self.failure_detected = False
-        self.fail_statement = ""
-
-    def scan(self):
-        if not os.path.exists(self.filepath):
-            raise Exception('Simulation file not found ' + self.filepath)
-        import subprocess
-        file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='fso', dir='.')
-        subprocess.call(["tail", "-500", self.filepath], stdout=file_)
-
-        capture_fail = False
-        file_.seek(0)  # reset to be able to read
-        for line in file_:
-            if capture_fail:
-                capture_fail = False
-                self.fail_statement = line
-            if 'Step' in line and 'Time' in line and 'Lambda' in line:
-                self.oldscan = self.newscan
-                self.newscan = []
-            if 'Received the TERM signal' in line:
-                self.cancel_detected = True
-            if 'Fatal error:' in line:
-                self.failure_detected = True
-                capture_fail = True
-            if 'Finished mdrun' in line:
-                self.finish_detected = True
-            self.newscan.append(line)
-        file_.close()
-        if not (self.newscan or self.oldscan):
-            raise Exception('Tail command appears to have failed.')
-
-        # assume a short scan indicates the file was cut off
-        #     which could get fooled by dumping the state matrix, but it's only
-        #     one frame off
-        if len(self.oldscan) > len(self.newscan):
-            self.newscan = self.oldscan
-
-        count = 0
-        capture_weights = False
-        for line in self.newscan:
-            count += 1
-            if count == 2:
-                splt = line.split()
-                if splt:
-                    try:
-                        self.num_of_steps = int(splt[0])
-                    except Exception as e:
-                        tb = sys.exc_info()[2]
-                        print(tb + ":" + str(e))
-            if line.isspace():
-                capture_weights = False
-            if capture_weights:
-                splt = line.split()
-                weight = float(splt[5])
-                self.weights.append(weight)
-            if 'N' in line and 'Count' in line and 'G(in kT)' in line:
-                capture_weights = True
-                self.weights = []
-
-    def get_wanglandau_weights(self):
-        return self.weights
-
-    def get_step_number(self):
-        return self.num_of_steps
-
-class SlurmGen:
+class SlurmGen(slurm_template.Slurm):
 
     def __init__(self):
-        self.script = ""
-        self.header = ""
-        self.setup = ""
-        self.checkin = ""
-        self.main = ""
-        self.cleanup = ""
-        self.checkout = ""
-        self.fields_general = dict()
-        self.fields_header = dict()
-        self.fields_checkin = dict()
-        self.fields_setup = dict()
-        self.fields_main = dict()
-        self.fields_cleanup = dict()
-        self.fields_checkout = dict()
+        slurm_template.Slurm.__init__(self)
         self.double_precision = False
         self.use_mpi = False
         self.gromacs5 = False
         self.calc_wt = True
+        self.extra = None
+
+        self.opt_jobname = ""
+        self.opt_suffix = ""
+        self.opt_ntasks = 1
+        self.opt_workdir = None
+        self.opt_queuetime = "2-00:00:00"
+        self.opt_timens = 1
+
+        self.file_out = ""
+        self.file_mdp = ""
+        self.file_gro = ""
+        self.file_top = ""
+        self.file_ndx = ""
+        self.file_tpr = ""
 
     def walltime(self, ns, ntasks, nnodes):
         rate = 7.5 / 20  # 7.5 ns/day per 20 cores for double precicion
@@ -374,136 +303,83 @@ class SlurmGen:
         return '{0}-{1:02}:{2:02}:{3:02}'.format(days, hours, mins, secs)
 
     def compile(self):
-        self.script = ""
-        self.script += self.get_header()
-        self.script += "\n"
-        self.script += self.get_setup()
-        self.script += "\n"
-        self.script += self.get_checkin()
-        self.script += "\n"
-        self.script += self.get_main()
-        self.script += "\n"
-        self.script += self.get_cleanup()
-        self.script += "\n"
-        self.script += self.get_checkout()
-        return self.script
+        self.set_header()
+        self.set_setup()
+        self.set_commands()
+        return slurm_template.Slurm.compile(self)
 
-    def get_header(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_header)
-        fields["nnodes"] = 1
-        fields["partition"] = "serial"
+    def set_header(self):
+        nnodes = 1
+        partition = "serial"
+        queuetime = self.opt_queuetime
+
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            fields["nnodes"] = int(math.ceil(fields["ntasks"] / 20.0))
-        if fields["nnodes"] == 0:
-            fields["nnodes"] = 1
-        elif fields["nnodes"] > 1:
-            fields["partition"] = "parallel"
+            nnodes = int(math.ceil(ntasks / 20.0))
+        if nnodes == 0:
+            nnodes = 1
+        elif nnodes > 1:
+            partition = "parallel"
         if self.calc_wt:
-            fields["queue-time"] = self.walltime(fields["time-ns"],
-                fields["ntasks"], fields["nnodes"])
-        self.header = """#!/bin/sh
-#SBATCH --job-name={job-name}{suffix}
-#SBATCH --partition={partition}
-#SBATCH --nodes={nnodes}
-#SBATCH --ntasks={ntasks}
-#SBATCH --time={queue-time}
-#SBATCH --signal=15 --comment="15 = SIGTERM"
-#SBATCH --output={outputfile}.out
-#SBATCH --workdir={workdir}
-#SBATCH --checkpoint=06:00:00
-#SBATCH --checkpoint-dir=/scratch/jtp4kc/checkpoints
-#SBATCH --mail-type=REQUEUE
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-#SBATCH --mail-user=jtp4kc@virginia.edu
-#SBATCH --comment="#SBATCH --array-0,1,3"
-""".format(**fields)
-        return self.header
+            queuetime = self.walltime(self.opt_timens, self.opt_ntasks, nnodes)
 
-    def get_setup(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_setup)
-        self.setup = """MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
-MODULEPATH=$HOME/modules:$MODULEPATH
-module load jtp4kc
-module load anaconda-jtp
-module load openmpi/1.8.1
-"""
+        self.job_name = self.opt_jobname + self.opt_suffix
+        self.partition = partition
+        self.nodes = nnodes
+        self.ntasks = self.opt_ntasks
+        self.time = queuetime
+        self.signal = 15
+        self.output = self.file_out
+        self.workdir = self.opt_workdir
+        self.mail_types.append("REQUEUE")
+        self.mail_types.append("END")
+        self.mail_types.append("FAIL")
+        self.mail_user = "jtp4kc@virginia.edu"
+
+    def set_setup(self):
+        self.status_filename = os.path.join('..', 'jobstatus.txt')
+
+        self.modulepath_prepends.append("/h3/n1/shirtsgroup/modules")
+        self.modulepath_prepends.append("$HOME/modules")
+        self.modules.append("jtp4kc")
+        self.modules.append("anaconda-jtp")
         if self.gromacs5:
-            self.setup += "module load gromacs/5.0.2-sse"
+            self.modules.append("module load gromacs/5.0.2-sse")
         else:
-            self.setup += "module load gromacs-shirtsgroup/4.6.7"
+            self.modules.append("gromacs-shirtsgroup/4.6.7")
 
-        self.setup += """
+        self.exports.append('THREADINFO="-nt ' + str(self.opt_ntasks) + ' "')
+        self.exports.append('GMX_SUPPRESS_DUMP=1 #prevent step file output')
 
-export THREADINFO="-nt {ntasks} "
-export GMX_SUPPRESS_DUMP=1 #prevent step file output
-
-sleep 1
-diagnostics
-"""
-        self.setup = self.setup.format(**fields)
-        return self.setup
-
-    def get_checkin(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_checkin)
-        self.checkin = """#Change the job status to 'SUBMITTED'
-echo "SUBMITTED {job-name}{suffix} `date`" >> {jobstatus}
-echo "Job Started at `date`"
-""".format(**fields)
-        return self.checkin
-
-    def get_main(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_main)
-        fields['dm'] = ""
+    def set_commands(self):
+        dm = ""
         if self.double_precision:
-            fields['dm'] = "_d"
-        self.main = """#PRODUCTION
-grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
-if [ -f {job-name}.tpr ];
-then
-    echo "MD Simulation launching..."
-    mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
-else
-    echo "Error generating {job-name}.tpr"
-fi
-""".format(**fields)
-        return self.main
+            dm = "_d"
 
-    def get_cleanup(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_cleanup)
-        self.cleanup = ""
-        if self.fields_cleanup["move-cmds"]:
-            self.cleanup += "{move-cmds}\n"
-        if self.fields_cleanup["extra-instructions"]:
-            self.cleanup += "{extra-instructions}\n"
-        self.cleanup = self.cleanup.format(**fields)
-        return self.cleanup
+        grompp = ["grompp" + dm,
+                  "-c", self.file_gro,
+                  "-p", self.file_top,
+                  "-n", self.file_ndx,
+                  "-f", self.file_mdp,
+                  "-o", self.file_tpr,
+                  "-maxwarn", "15"]
 
-    def get_checkout(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_checkout)
-        self.checkout = """
-echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
-# print end time
-echo
-echo "Job Ended at `date`"
-echo "###################################################################"
-""".format(**fields)
-        return self.checkout
+        self.commands.append("rm " + self.file_tpr + " # in case files changed")
+        self.commands.append(" ".join(grompp))
+        self.commands.append("if [ -f " + self.file_tpr + " ];")
+        self.commands.append("then")
+        self.commands.append('    echo "MD Simulation launching..."')
+        self.commands.append("    mdrun" + dm + " ${THREADINFO} -deffnm " +
+                             self.opt_jobname)
+        self.commands.append("else")
+        self.commands.append('    echo "Error creating ' + self.file_tpr + '"')
+        self.commands.append("fi")
 
-class MDPGen:
+        if self.extra:
+            self.commands.append("")
+            self.commands.append(self.extra)
+
+class MDPGen(mdp_template.MDP):
 
     class PkgPrecision:
         def __init__(self):
@@ -512,24 +388,7 @@ class MDPGen:
             self.shake_tol = 5e-6
 
     def __init__(self):
-        self.script = ""
-        self.params = ""
-        self.neighbors = ""
-        self.output = ""
-        self.interactions = ""
-        self.bonds = ""
-        self.velocities = ""
-        self.coupling = ""
-        self.expdens = ""
-        self.fields_general = dict()
-        self.fields_params = dict()
-        self.fields_neighbors = dict()
-        self.fields_output = dict()
-        self.fields_interactions = dict()
-        self.fields_bonds = dict()
-        self.fields_velocities = dict()
-        self.fields_coupling = dict()
-        self.fields_expdens = dict()
+        mdp_template.MDP.__init__(self)
         self.ensemble = "NVT"
         self.volume_control = False
         self.fixed_state = False
@@ -547,24 +406,26 @@ class MDPGen:
         self.precision = self.pkg_double
         self.gromacs5 = False
 
-    def compile(self):
-        self.script = ""
-        self.script += self.get_params()
-        self.script += "\n"
-        self.script += self.get_neighbors()
-        self.script += "\n"
-        self.script += self.get_output()
-        self.script += "\n"
-        self.script += self.get_interactions()
-        self.script += "\n"
-        self.script += self.get_bonds()
-        self.script += "\n"
-        self.script += self.get_velocities()
-        self.script += "\n"
-        self.script += self.get_coupling()
-        self.script += "\n"
-        self.script += self.get_expdens()
-        return self.script
+        self.opt_nstout = 0
+        self.opt_temp = 0
+        self.opt_dt = 0
+        self.opt_timens = 0
+        self.opt_genseed = 0
+        self.opt_tempalg = ""
+        self.opt_ligand = ""
+        self.opt_feplambdas = ""
+        self.opt_coullambdas = ""
+        self.opt_vdwlambdas = ""
+        self.opt_initlambda = 0
+        self.opt_initlambdaindex = 0
+        self.opt_nstmc = ""
+        self.opt_weightsequil = ""
+        self.opt_lmcseed = 0
+        self.opt_gibbsdelta = ""
+        self.opt_wlweights = ""
+        self.opt_wlincr = 0
+        self.opt_wlscale = 0
+        self.opt_wlratio = 0
 
     def set_ensemble(self, code="NVT"):
         self.ensemble = code
@@ -579,243 +440,147 @@ class MDPGen:
         else:
             self.precision = self.pkg_single
 
-    def get_params(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_params)
-        fields['nstrun'] = fields['time-ns'] * (1000 / fields['dt'])
-        self.params = """; RUN CONTROL PARAMETERS = 
-integrator               = md-vv
-; start time and timestep in ps = 
-tinit                    = 0
-dt                       = {dt:0.3f}
-nsteps                   = {nstrun:<12.0f}; {time-ns:0.2f} ns
-; mode for center of mass motion removal = 
-comm-mode                = Linear
-; number of steps for center of mass motion removal = 
-nstcomm                  = 1
-; group(s) for center of mass motion removal = 
-;comm-grps                = 
-nsttcouple               = 1
-nstpcouple               = 1
-; preprocessing
-include                  = -I/nv/blue/jtp4kc/gromacs/itp/
-""".format(**fields)
-        return self.params
+    def compile(self):
+        self.set_params()
+        self.set_neighbors()
+        self.set_output()
+        self.set_interactions()
+        self.set_bonds()
+        self.set_velocities()
+        self.set_coupling()
+        self.set_free_energy()
+        self.set_expanded_ensemble()
+        self.set_monte_carlo()
+        return mdp_template.MDP.compile(self)
 
-    def get_neighbors(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_neighbors)
-        self.neighbors = """; NEIGHBORSEARCHING PARAMETERS = 
-; nblist update frequency = 
-nstlist                  = 10
-; ns algorithm (simple or grid) = 
-ns_type                  = grid
-; Periodic boundary conditions: xyz or no = 
-pbc                      = xyz
-; nblist cut-off         = 
-rlist                    = 1.2
-""".format(**fields)
-        return self.neighbors
+    def set_params(self):
+        nstrun = self.opt_timens * (1000 / self.opt_dt)
+        self.integrator = "md-vv"
+        self.tinit = "0"
+        self.dt = "{0:0.3f}".format(self.opt_dt)
+        self.nsteps = "{0:<12.0f}; {1:0.2f} ns".format(nstrun, self.opt_timens)
+        self.comm_mode = "Linear"
+        self.nstcomm = "1"
+        self.nsttcouple = "1"
+        self.nstpcouple = "1"
+        self.include = "-I/nv/blue/jtp4kc/gromacs/itp"
 
-    def get_output(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_output)
-        self.output = """; OUTPUT CONTROL OPTIONS
-; Output frequency for coords (x), velocities (v) and forces (f)
-nstxout                  = 0
-nstvout                  = 0
-nstfout                  = 0
-; Output frequency for energies to log file and energy file
-nstlog                   = {nstout:0.0f}  ; changing this allows you to see the frequency the weights are computed.
-nstcalcenergy            = 1
-nstenergy                = {nstout:0.0f}
-; Output frequency and precision for .xtc file"""
+    def set_neighbors(self):
+        self.nstlist = "10"
+        self.ns_type = "grid"
+        self.pbc = "xyz"
+        self.rlist = "1.2"
+
+    def set_output(self):
+        self.nstxout = "0"
+        self.nstvout = "0"
+        self.nstfout = "0"
+        self.nstlog = "{0:0.0f}".format(self.opt_nstout)
+        self.nstcalcenergy = "1"
+        self.nstenergy = self.nstlog
         if self.gromacs5:
-            self.output += """
-nstxout-compressed       = {nstout:0.0f}  ; trajectory output frequency
-compressed-x-precision   = 1000
-"""
+            self.nstxout_compressed = self.nstlog
+            self.compressed_x_precision = "1000"
         else:
-            self.output += """
-nstxtcout                = {nstout:0.0f}  ; trajectory output frequency
-xtc-precision            = 1000
-"""
-            self.output = self.output.format(**fields)
-        return self.output
+            self.nstxtcout = self.nstlog
+            self.xtc_precision = "1000"
 
-    def get_interactions(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_interactions)
-        self.interactions = """; OPTIONS FOR ELECTROSTATICS AND VDW = 
-; Method for doing electrostatics = 
-cutoff-scheme            = group
-coulombtype              = PME
-coulomb-modifier         = Potential-Switch
-rcoulomb-switch          = 0.88
-rcoulomb                 = 0.9
+    def set_interactions(self):
+        self.cutoff_scheme = "group"
+        self.coulombtype = "PME"
+        self.coulomb_modifier = "Potential-Switch"
+        self.rcoulomb_switch = "0.88"
+        self.rcoulomb = "0.9"
+        self.vdw_type = "Cut-off"
+        self.vdw_modifier = "Potential-Switch"
+        self.rvdw_switch = "0.85"
+        self.rvdw = "0.9"
+        self.DispCorr = "AllEnerPres"
+        self.fourierspacing = "0.12"
+        self.fourier_nx = "0"
+        self.fourier_ny = "0"
+        self.fourier_nz = "0"
+        self.pme_order = "4"
+        self.ewald_rtol = "1e-05"
+        self.ewald_geometry = "3d"
 
-; Method for doing Van der Waals = 
-vdw-type                 = Cut-off
-vdw-modifier             = Potential-switch
-; cut-off lengths        = 
-rvdw-switch              = 0.85
-rvdw                     = 0.9
-; Apply long range dispersion corrections for Energy and Pressure = 
-DispCorr                 = AllEnerPres
-; Spacing for the PME/PPPM FFT grid = 
-fourierspacing           = 0.12
-; FFT grid size, when a value is 0 fourierspacing will be used = 
-fourier_nx               = 0
-fourier_ny               = 0
-fourier_nz               = 0
-; EWALD/PME/PPPM parameters = 
-pme_order                = 4
-ewald_rtol               = 1e-05
-ewald_geometry           = 3d
-""".format(**fields)
-        return self.interactions
+    def set_bonds(self):
+        self.constraints = "hbonds ; constrain bonds to hydrogen"
+        self.constraint_algorithm = "shake"
+        self.shake_tol = str(self.precision.shake_tol)
 
-    def get_bonds(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_bonds)
-        fields.update(self.precision.__dict__)
-        self.bonds = """; OPTIONS FOR BONDS     = 
-constraints              = hbonds ; constrain bonds to hydrogen
-; Type of constraint algorithm = 
-constraint-algorithm     = shake
-; Highest order in the expansion of the constraint coupling matrix = 
-shake-tol                = {shake_tol} ; ~TP
-""".format(**fields)
-        return self.bonds
+    def set_velocities(self):
+        self.comment_velocities1 = "GENERATE VELOCITIES FOR STARTUP RUN = "
+        self.gen_vel = "yes"
+        self.gen_temp = "{0:0.1f} ; K".format(self.opt_temp)
+        self.gen_seed = str(self.opt_genseed)
 
-    def get_velocities(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_velocities)
-        self.velocities = """; GENERATE VELOCITIES FOR STARTUP RUN = 
-gen_vel                  = yes
-gen_temp                 = {temp:0.1f} ; K
-gen_seed                 = {gen-seed}
-""".format(**fields)
-        return self.velocities
-
-    def get_coupling(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_coupling)
-        fields.update(self.precision.__dict__)
-        self.coupling = """; OPTIONS FOR WEAK COUPLING ALGORITHMS = 
-; Groups to couple separately = 
-tc-grps                  = System
-; Time constant (ps) and reference temperature (K) = 
-tcoupl                   = {temp-alg}
-tau_t                    = {tau_t} ; ~TP
-ref_t                    = {temp:0.1f}
-"""
+    def set_coupling(self):
+        self.comment_coupling1 = "OPTIONS FOR WEAK COUPLING ALGORITMS"
+        self.tc_grps = "System"
+        self.tcoupl = self.opt_tempalg
+        self.tau_t = str(self.precision.tau_t)
+        self.ref_t = str(self.opt_temp)
         if self.volume_control:
-            self.coupling += """
-; Volume control         = 
-Pcoupl                   = no
-"""
+            self.comment_coupling3 = "Volume control"
+            self.pcoupl = "no"
         else:
-            self.coupling += """
-; Pressure coupling      = 
-Pcoupl                   = MTTK
-Pcoupltype               = isotropic
-; Time constant (ps), compressibility (1/bar) and reference P (bar) = 
-tau_p                    = {tau_p} ; ps ~TP
-compressibility          = 4.5e-5 ; 1/bar
-ref_p                    = 1.0 ; bar
-"""
-        self.coupling = self.coupling.format(**fields)
-        return self.coupling
+            self.comment_coupling3 = "Pressure coupling"
+            self.pcoupl = "MTTK"
+            self.pcoupltype = "isotropic"
+            self.tau_p = str(self.precision.tau_p) + "; ps"
+            self.compressibility = "4.5e-5 ; 1/bar"
+            self.ref_p = "1.0 ; bar"
 
-    def get_expdens(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        self.expdens = "; OPTIONS FOR EXPANDED ENSEMBLE SIMULATIONS"
-        self.expdens += self.get_free_energy()
-        self.expdens += "\n"
-        self.expdens += self.get_expanded_ensemble()
-        self.expdens += "\n"
-        self.expdens += self.get_monte_carlo()
-        return self.expdens
-
-    def get_free_energy(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        fields['energy-out'] = "yes"
+    def set_free_energy(self):
+        self.sc_alpha = "0.5"
+        self.couple_moltype = self.opt_ligand
+        self.couple_lambda0 = "vdw-q"
+        self.couple_lambda1 = "none"
+        self.couple_intramol = "no"
+        self.fep_lambdas = self.opt_feplambdas
+        self.coul_lambdas = self.opt_coullambdas
+        self.vdw_lambdas = self.opt_vdwlambdas
+        self.symmetrized_transition_matrix = "yes"
+        self.nst_transition_matrix = "100000"
+        self.nstdhdl = str(self.opt_nstout)
         if self.gromacs5:
-            fields['energy-out'] = "total"
-        part = """; Free energy control stuff  
-sc-alpha                  = 0.5
-couple-moltype            = {ligand}
-couple-lambda0            = vdw-q
-couple-lambda1            = none
-couple-intramol           = no
-fep-lambdas               = {fep-lambdas}
-coul-lambdas              = {coul-lambdas}
-vdw-lambdas               = {vdw-lambdas}
-symmetrized-transition-matrix = yes
-nst-transition-matrix     = 100000
-nstdhdl                   = {nstout:0.0f}
-dhdl-print-energy         = {energy-out}
-"""
+            self.dhdl_print_energy = "total"
+        else:
+            self.dhdl_print_energy = "yes"
         if self.fixed_state:
-            part += "free-energy               = yes\n"
-            part += "init-lambda               = {init-lambda}\n"
+            self.free_energy = "yes"
+            self.init_lambda = str(self.opt_initlambda)
         else:
-            part += "free-energy               = expanded\n"
-            part += "init-lambda-state         = {init-state-index}\n"
-        part = part.format(**fields)
-        return part
+            self.free_energy = "expanded"
+            self.init_lambda_state = str(self.opt_initlambdaindex)
 
-    def get_expanded_ensemble(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        part = """; expanded ensemble
-nstexpanded              = {nst-mc:0.0f}
-lmc-stats                = wang-landau
-lmc-weights-equil        = {weights-equil}
-lmc-seed                 = {lmc-seed}
-"""
+    def set_expanded_ensemble(self):
+        self.nstexpanded = "{0:0.0f}".format(self.opt_nstmc)
+        self.lmc_stats = "wang-landau"
+        self.lmc_weights_equil = str(self.opt_weightsequil)
+        self.lmc_seed = str(self.opt_lmcseed)
         if self.use_gibbs and self.use_metro:
-            part += "lmc-move                 = metropolized-gibbs\n"
-            part += "lmc-gibbsdelta           = {gibbs-delta}\n"
+            self.lmc_move = "metropolized-gibbs"
+            self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_gibbs:
-            part += "lmc-move                 = gibbs\n"
-            part += "lmc-gibbsdelta           = {gibbs-delta}\n"
+            gibbs = fields['gibbs-delta']
+            self.lmc_move = "gibbs"
+            self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_metro:
-            part += "lmc-move                 = metropolis\n"
+            self.lmc_move = "metropolis"
         else:
-            part += "lmc-move                 = no\n"
-
+            self.lmc_move = "no"
         if self.initial_weights:
-            part += "init-lambda-weights      = {wl-weights}\n"
+            self.init_lambda_weights = str(self.opt_wlweights)
         else:
-            part += "weight-equil-wl-delta    = 0.001\n"
-        part = part.format(**fields)
-        return part
+            self.weight_equil_wl_delta = "0.001"
 
-    def get_monte_carlo(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        part = """; Seed for Monte Carlo in lambda space
-wl-scale                 = {wl-scale:0.3f}
-wl-ratio                 = {wl-ratio:0.3f}
-init-wl-delta            = {wl-incr:0.3f}
-wl-oneovert              = yes
-""".format(**fields)
-        return part
+    def set_monte_carlo(self):
+        self.wl_scale = "{0:0.3f}".format(self.opt_wlscale)
+        self.wl_ratio = "{0:0.3f}".format(self.opt_wlratio)
+        self.init_wl_delta = "{0:0.3f}".format(self.opt_wlincr)
+        self.wl_oneovert = "yes"
 
 class BEPGen:
 
@@ -879,19 +644,6 @@ class BEPGen:
     def write(self, file_name):
         BEPGen.params.write_options(file_name, self.fields_output)
 
-def submit_slurm(slurm_file, job, doprint=True):
-    import subprocess
-    file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", slurm_file], stdout=file_)
-    file_.seek(0)  # reset to be able to read
-    line = file_.readline().replace("\n", "")
-    file_.close()  # file should be deleted shortly hereafter
-    num = line.split(" ")[-1]
-    if doprint:
-        print(line)
-        print("Sbatch'd Job " + job + " as job #" + num)
-    return num
-
 def generate(opts):
     fir = FilesystemImpactRegister()
     fir.cwd = os.getcwd()
@@ -906,11 +658,17 @@ def generate(opts):
     if not base_name:
         base_name = job_name
 
-    dir_ = os.path.join(backup.expandpath(opts[KEYS.work_dir]), "")
-    if not os.path.exists(dir_):
-        os.mkdir(dir_)
-    os.chdir(dir_)
-    path = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+    here = os.path.join(os.curdir, "")
+    dir_ = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
+    if dir_.startswith(here):
+        dir_ = dir_.replace(here, "")
+    if dir_:
+        if not os.path.exists(dir_):
+            os.mkdir(dir_)
+        os.chdir(dir_)
+    path = os.path.join(backup.expandrelpath(opts[KEYS.script_dir]), "")
+    if path.startswith(here):
+        path = path.replace(here, "")
 
     tpr_files = []
     xtc_files = []
@@ -996,22 +754,21 @@ def generate(opts):
         builder.use_mpi = opts[KEYS.sim_use_mpi]
         builder.calc_wt = opts[KEYS.auto_calc_wt]
         builder.gromacs5 = opts[KEYS.sim_gromacs5]
-        builder.fields_general['job-name'] = job_name
-        builder.fields_general['suffix'] = suffix
-        builder.fields_general['ntasks'] = opts[KEYS.mdr_threads]
-        builder.fields_general['workdir'] = workdir
-        builder.fields_general['jobstatus'] = os.path.join('..',
-            'jobstatus.txt')
-        builder.fields_header['time-ns'] = opts[KEYS.sim_time]
-        builder.fields_header['queue-time'] = opts[KEYS.mdr_queue_time]
-        builder.fields_header['outputfile'] = os.path.join(path,
-            job_name + suffix, job_name)
-        builder.fields_main['base'] = base_name
-        builder.fields_main['gro-in'] = gro_in
-        builder.fields_main['mdp-in'] = mdp_in
-        builder.fields_main['infolder'] = indir
-        builder.fields_cleanup['move-cmds'] = move
-        builder.fields_cleanup['extra-instructions'] = extra
+
+        builder.opt_jobname = job_name
+        builder.opt_suffix = suffix
+        builder.opt_ntasks = opts[KEYS.mdr_threads]
+        builder.opt_workdir = workdir
+        builder.opt_timens = opts[KEYS.sim_time]
+        builder.opt_queuetime = opts[KEYS.mdr_queue_time]
+        builder.file_out = os.path.join(path, job_name + suffix, job_name +
+                                        ".out")
+        builder.file_mdp = mdp_in + ".mdp"
+        builder.file_gro = os.path.join("..", gro_in + "-in.gro")
+        builder.file_top = os.path.join("..", base_name + ".top")
+        builder.file_ndx = os.path.join("..", base_name + ".ndx")
+        builder.file_tpr = job_name + ".tpr"
+        builder.extra = extra
 
         file_ = open(file_name, 'w')
         file_.write(builder.compile())
@@ -1028,17 +785,17 @@ def generate(opts):
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
                 num = submit_slurm(file_name, job_name + suffix)
-                global SAVE_LIBRARY
-                SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
+#                 global SAVE_LIBRARY
+#                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
             else:
                 print("DRYRUN: Would sbatch job " + job_name + suffix)
 
-        global SAVE_LIBRARY
-        jname = job_name + suffix
-        SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
-        SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
-        if submit:
-            SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
+#         global SAVE_LIBRARY
+#         jname = job_name + suffix
+#         SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
+#         SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
+#         if submit:
+#             SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
 
     if submit:
         os.chdir(dir_)
@@ -1084,7 +841,7 @@ def generate(opts):
         filepath = os.path.realpath(filename)
         analysis.write(filepath)
 
-        SAVE_LIBRARY[save_keys.files].append(filepath)
+#         SAVE_LIBRARY[save_keys.files].append(filepath)
 
     os.chdir(fir.cwd)
     return fir
@@ -1192,32 +949,32 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         builder.set_precision("double")
     else:
         builder.set_precision("single")
-    builder.fields_general['nstout'] = opts[KEYS.sim_nstout]
-    builder.fields_general['temp'] = opts[KEYS.sim_temperature]
-    builder.fields_params['dt'] = dt;  # ps
-    builder.fields_params['time-ns'] = opts[KEYS.sim_time]
-    builder.fields_velocities['gen-seed'] = genseed
-    builder.fields_coupling['temp-alg'] = opts[KEYS.sim_temp_alg]
-    builder.fields_expdens['ligand'] = opts[KEYS.ligand]
-    builder.fields_expdens['fep-lambdas'] = fep_lambdas
-    builder.fields_expdens['coul-lambdas'] = coul_lambdas
-    builder.fields_expdens['vdw-lambdas'] = vdw_lambdas
-    builder.fields_expdens['init-lambda'] = init_lambda
-    builder.fields_expdens['init-state-index'] = state_index
-    builder.fields_expdens['nst-mc'] = opts[KEYS.sim_nst_mc]
-    builder.fields_expdens['weights-equil'] = equil
-    builder.fields_expdens['lmc-seed'] = lmcseed
-    builder.fields_expdens['gibbs-delta'] = int(opts[KEYS.sim_gibbs_delta])
-    builder.fields_expdens['wl-weights'] = wl_weights
-    builder.fields_expdens['wl-incr'] = opts[KEYS.sim_incrementor]
-    builder.fields_expdens['wl-scale'] = opts[KEYS.sim_wl_scale]
-    builder.fields_expdens['wl-ratio'] = opts[KEYS.sim_wl_ratio]
+    builder.opt_nstout = opts[KEYS.sim_nstout]
+    builder.opt_temp = opts[KEYS.sim_temperature]
+    builder.opt_dt = dt;  # ps
+    builder.opt_timens = opts[KEYS.sim_time]
+    builder.opt_genseed = genseed
+    builder.opt_tempalg = opts[KEYS.sim_temp_alg]
+    builder.opt_ligand = opts[KEYS.ligand]
+    builder.opt_feplambdas = fep_lambdas
+    builder.opt_coullambdas = coul_lambdas
+    builder.opt_vdwlambdas = vdw_lambdas
+    builder.opt_initlambda = init_lambda
+    builder.opt_initlambdaindex = state_index
+    builder.opt_nstmc = opts[KEYS.sim_nst_mc]
+    builder.opt_weightsequil = equil
+    builder.opt_lmcseed = lmcseed
+    builder.opt_gibbsdelta = int(opts[KEYS.sim_gibbs_delta])
+    builder.opt_wlweights = wl_weights
+    builder.opt_wlincr = opts[KEYS.sim_incrementor]
+    builder.opt_wlscale = opts[KEYS.sim_wl_scale]
+    builder.opt_wlratio = opts[KEYS.sim_wl_ratio]
 
     file_name = os.path.realpath(name + '.mdp')
     file_ = open(file_name, 'w')
     file_.write(builder.compile())
     file_.close()
-    SAVE_LIBRARY[save_keys.files].append(file_name)
+#     SAVE_LIBRARY[save_keys.files].append(file_name)
 
     os.chdir(cur_dir)
     return True
@@ -1258,7 +1015,7 @@ def gen_rand(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-equil'))
             file_name = '{0}-equil.log'.format(opts[KEYS.job_name])
 
-            logscan = FileScan(file_name)
+            logscan = job_save.LogScan(file_name)
             logscan.scan()
             weights = logscan.get_wanglandau_weights()
             opts[KEYS.sim_weight_values] = weights
@@ -1303,7 +1060,7 @@ def gen_array(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
             file_name = '{0}-rand.log'.format(opts[KEYS.job_name])
 
-            logscan = FileScan(file_name)
+            logscan = job_save.LogScan(file_name)
             logscan.scan()
             num_of_steps = logscan.get_step_number()
             # print("ns:" + str(num_of_steps))
@@ -1380,7 +1137,7 @@ def sim_status(save_lib):
         shakecount = 0
         step = 0
         if os.path.exists(logfile):
-            scan = FileScan(logfile)
+            scan = job_save.LogScan(logfile)
             try:
                 scan.scan()
                 step = scan.get_step_number()
@@ -1593,8 +1350,8 @@ def main(argv=None):
     if options.save:
         save_name = options.save
 
-    global SAVE_LIBRARY
-    SAVE_LIBRARY = job_save.save_defaults()
+#     global SAVE_LIBRARY
+#     SAVE_LIBRARY = job_save.save_defaults()
 
     do_output = False
     if isinstance(opt_list, list):

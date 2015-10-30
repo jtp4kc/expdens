@@ -317,6 +317,7 @@ def write_top(top_filename, top):
             _format(top.dihedrals, cat)
         else:
             _format([], cat)
+        output.write("\n")
     output.close()
 
 def modify(args):
