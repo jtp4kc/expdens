@@ -325,7 +325,7 @@ class SlurmGen(slurm_template.Slurm):
         self.nodes = nnodes
         self.ntasks = self.opt_ntasks
         self.time = queuetime
-        self.signal = 15
+        self.signal = 15  # 15 = SIGTERM
         self.output = self.file_out
         self.workdir = self.opt_workdir
         self.mail_types.append("REQUEUE")

@@ -12,11 +12,11 @@ job_daemon -- monitors, restarts, and gives updates on running jobs on Rivanna
 '''
 
 import sys
-import os
 import job_utils
 import traceback
 import time
 import datetime
+import signal
 
 from argparse import ArgumentParser
 from slurm_template import Slurm
@@ -41,6 +41,16 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
+class SigtermError(Exception):
+    '''Exception to raise when SIGTERM is encountered.'''
+    def __init__(self, msg="SIGTERM"):
+        super(SigtermError).__init__(type(self))
+        self.msg = "E: %s" % msg
+    def __str__(self):
+        return self.msg
+    def __unicode__(self):
+        return self.msg
+
 class Attr():
     def __init__(self):
         self.NUM_STEPS = "num_of_steps"
@@ -57,6 +67,7 @@ def get_slurm(jobname, command):
     slurm.ntasks = 1
     slurm.time = "7-00:00:00"
     slurm.output = "daemon.log"
+    slurm.signal = 15  # 15 = SIGTERM
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
 
@@ -67,10 +78,20 @@ def get_slurm(jobname, command):
     slurm.commands.append(command)
     return slurm
 
-def reschedule(savefilename, pathtohere):
+def reschedule(savefilename, pathtohere=None):
+    if pathtohere == None:
+        pathtohere = __file__
+    if pathtohere.endswith(".pyc"):
+        pathtohere = pathtohere.replace(".pyc", ".py")
+    fname = savefilename
+    if "." in fname:
+        fname = fname.split(".")[:-1] + ".slurm"
+    else:
+        fname += ".slurm"
+
     cmd = "python " + pathtohere + " --save " + savefilename
     slurm = get_slurm(cmd)
-
+    job_utils.submit_slurm(slurm, fname)
 
 def _filename(entry, key, index=0):
     filename = entry.files[key]
@@ -79,6 +100,13 @@ def _filename(entry, key, index=0):
     else:
         filename = str(filename)
     return filename
+
+def setup_signalhandler():
+    def handler(signum, _):  # signum, frame
+        print("Signal encountered: " + str(signum))
+        raise SigtermError()
+
+    signal.signal(signal.SIGTERM, handler)
 
 def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
@@ -147,6 +175,7 @@ def check_resubmit(entry, errors):
     return status, rsc_old, rsc_cpt
 
 def daemon(savefilename):
+    timestamp = datetime.datetime.now()
     savemgr = job_utils.SaveJobs()
     savemgr.load(savefilename)
 
@@ -155,38 +184,52 @@ def daemon(savefilename):
     if not entries:
         daemon_cancel = True
 
+    setup_signalhandler()
+
     while not daemon_cancel:
-        savemgr.save()
-        for entry in entries:
-            timecheck(entry)
-            try:
-                # get log progress
-                logscan = check_log(entry)
-                # evaluate errors
-                error_list = check_errors(entry, logscan)
-                # change and resubmit if needed
-                (status, oldcpt, cpt) = check_resubmit(entry, error_list)
+        try:
+            savemgr.save()
+            for entry in entries:
+                timecheck(entry)
+                try:
+                    # get log progress
+                    logscan = check_log(entry)
+                    # evaluate errors
+                    error_list = check_errors(entry, logscan)
+                    # change and resubmit if needed
+                    (status, oldcpt, cpt) = check_resubmit(entry, error_list)
 
 
-            except Exception as e:
-                traceback.print_exc()
-                print("Error occurred while processing job " + entry.jobname)
-                print(e)
+                except Exception as e:
+                    if isinstance(e, SigtermError):
+                        raise e
+                    traceback.print_exc()
+                    print("Error occurred while processing job " + entry.jobname)
+                    print(e)
 
-        # what should the daemon do for each job?
-        #    check log to get progress
-        #    check output for errors
-        #    if errors, fix, change slurm if needed, and resubmit
-        #
-        #    if no errors, proceed
-        #    copy log, xtc, tpr, and xvg to alternate location
-        #    process xtc, using visualizer to produce vmd markup
-        #    run alchemical analysis to look at weights
-        #
-        # at end of each cycle, print a summary file showing status of each
-        #    job, such as progress, errors/resets, etc
-        # if anything is strange, such as temp, pressure, etc, produce error
-        #    file for user to read
+                # what should the daemon do for each job?
+                #    check log to get progress
+                #    check output for errors
+                #    if errors, fix, change slurm if needed, and resubmit
+                #
+                #    if no errors, proceed
+                #    copy log, xtc, tpr, and xvg to alternate location
+                #    process xtc, using visualizer to produce vmd markup
+                #    run alchemical analysis to look at weights
+                #
+                # at end of each cycle, print a summary file showing status of
+                #    each job, such as progress, errors/resets, etc
+                # if anything is strange, such as temp, pressure, etc, produce
+                #    error file for user to read
+
+            runtime = datetime.datetime.now() - timestamp
+            if runtime.total_seconds() > (7 * 24 * 60 * 60):  # 1 week
+                # As a backup, use the total runtime as a signal to stop,
+                #    since on the cluster max runtime is currently 7 days
+                # If this is still running, it probably shouldn't be.
+                daemon_cancel = True
+        except SigtermError:
+            reschedule(savefilename)
 
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
@@ -196,7 +239,7 @@ def main(argv=None):  # IGNORE:C0111
     else:
         sys.argv.extend(argv)
 
-    program_name = os.path.basename(sys.argv[0])
+    # program_name = os.path.basename(sys.argv[0])
     program_version = "v%s" % __version__
     program_build_date = str(__updated__)
     program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
