@@ -13,7 +13,7 @@ job_daemon -- monitors, restarts, and gives updates on running jobs on Rivanna
 
 import sys
 import os
-import job_save
+import job_utils
 import traceback
 import time
 import datetime
@@ -82,7 +82,7 @@ def _filename(entry, key, index=0):
 
 def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
-    timestamp = job_save.SerialDate.deserialize(entry.attr[ATTR.TIME])
+    timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
     currenttime = datetime.datetime.now()
     relative = currenttime - timestamp
     while relative.total_seconds() < mindelta:
@@ -94,11 +94,11 @@ def timecheck(entry):
         currenttime = datetime.datetime.now()
         print("\tawake at " + str(currenttime))
         relative = currenttime - timestamp
-    entry.attr[ATTR.TIME] = job_save.SerialDate.serialize(currenttime)
+    entry.attr[ATTR.TIME] = job_utils.SerialDate.serialize(currenttime)
 
 def check_log(entry):
     logfile = _filename(entry, "log")
-    logscan = job_save.LogScan(logfile)
+    logscan = job_utils.LogScan(logfile)
     logscan.scan()
     if ATTR.NUM_STEPS in entry.attr:
         entry.attr[ATTR.OLD_STEPS] = entry.attr[ATTR.NUM_STEPS]
@@ -109,7 +109,7 @@ def check_log(entry):
 
 def check_errors(entry, logscan):
     outfile = _filename(entry, "out")
-    outscan = job_save.OutputScan(outfile)
+    outscan = job_utils.OutputScan(outfile)
     outscan.scan()
     errors = []
 
@@ -147,7 +147,7 @@ def check_resubmit(entry, errors):
     return status, rsc_old, rsc_cpt
 
 def daemon(savefilename):
-    savemgr = job_save.SaveJobs()
+    savemgr = job_utils.SaveJobs()
     savemgr.load(savefilename)
 
     daemon_cancel = False

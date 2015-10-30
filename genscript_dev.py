@@ -11,7 +11,7 @@ import math
 import backup
 from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
-import job_save
+import job_utils
 import mdp_template
 import slurm_template
 
@@ -227,7 +227,7 @@ def option_defaults():
 # provide custom default library
 param.option_defaults = option_defaults
 
-saver = job_save.SaveJobs()
+saver = job_utils.SaveJobs()
 
 #################################################################################
 #################################################################################
@@ -780,7 +780,7 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                num = job_save.submit_slurm(file_name, job_name + suffix)
+                num = job_utils.submit_slurm(file_name, job_name + suffix)
 #                 global SAVE_LIBRARY
 #                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
             else:
@@ -1011,7 +1011,7 @@ def gen_rand(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-equil'))
             file_name = '{0}-equil.log'.format(opts[KEYS.job_name])
 
-            logscan = job_save.LogScan(file_name)
+            logscan = job_utils.LogScan(file_name)
             logscan.scan()
             weights = logscan.get_wanglandau_weights()
             opts[KEYS.sim_weight_values] = weights
@@ -1056,7 +1056,7 @@ def gen_array(opts):
             os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
             file_name = '{0}-rand.log'.format(opts[KEYS.job_name])
 
-            logscan = job_save.LogScan(file_name)
+            logscan = job_utils.LogScan(file_name)
             logscan.scan()
             num_of_steps = logscan.get_step_number()
             # print("ns:" + str(num_of_steps))
@@ -1133,7 +1133,7 @@ def sim_status(save_lib):
         shakecount = 0
         step = 0
         if os.path.exists(logfile):
-            scan = job_save.LogScan(logfile)
+            scan = job_utils.LogScan(logfile)
             try:
                 scan.scan()
                 step = scan.get_step_number()
@@ -1177,7 +1177,7 @@ def sim_submit(save_lib):
         if os.path.exists(filename) and filename.endswith('.slurm'):
             submitted = True
             job = os.path.basename(filename)
-            num = job_save.submit_slurm(filename, job)
+            num = job_utils.submit_slurm(filename, job)
             save_lib[save_keys.jobs].append((job, num))
     if submitted:
         saver.write_options(save_lib[save_keys.name], save_lib)
@@ -1347,7 +1347,7 @@ def main(argv=None):
         save_name = options.save
 
 #     global SAVE_LIBRARY
-#     SAVE_LIBRARY = job_save.save_defaults()
+#     SAVE_LIBRARY = job_utils.save_defaults()
 
     do_output = False
     if isinstance(opt_list, list):
