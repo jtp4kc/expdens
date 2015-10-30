@@ -13,13 +13,13 @@ job_daemon -- monitors, restarts, and gives updates on running jobs on Rivanna
 
 import sys
 import os
-import math
 import job_save
 import traceback
 import time
 import datetime
 
 from argparse import ArgumentParser
+from slurm_template import Slurm
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -49,44 +49,28 @@ class Attr():
         self.TIME = "last_checked"
 ATTR = Attr()
 
-def submit_self(jobname, command):
-    fields = dict()
-    fields['job-name'] = jobname
-    fields['partition'] = 'serial'
-    fields['nnodes'] = 1
-    fields['ntasks'] = 1
-    fields['queue-time'] = '7-00:00:00'
-    fields['outputfile'] = 'daemon.log'
-    fields['workdir'] = "."
-    text = """#!/bin/sh
-#SBATCH --job-name={job-name}-daemon
-#SBATCH --partition={partition}
-#SBATCH --nodes={nnodes}
-#SBATCH --ntasks={ntasks}
-#SBATCH --time={queue-time}
-#SBATCH --signal=15 --comment="15 = SIGTERM"
-#SBATCH --output={outputfile}
-#SBATCH --workdir={workdir}
-#SBATCH --mail-type=REQUEUE
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-#SBATCH --mail-user=jtp4kc@virginia.edu
+def get_slurm(jobname, command):
+    slurm = Slurm()
+    slurm.job_name = jobname + "-daemon"
+    slurm.partition = "serial"
+    slurm.nodes = 1
+    slurm.ntasks = 1
+    slurm.time = "7-00:00:00"
+    slurm.output = "daemon.log"
+    slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
+    slurm.mail_user = "jtp4kc@virginia.edu"
 
-MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
-MODULEPATH=$HOME/modules:$MODULEPATH
-module load jtp4kc
-module load anaconda-jtp
-module load gromacs-shirtsgroup/4.6.7
+    slurm.modulepath_prepends.extend(["/h3/n1/shirtsgroup/modules",
+                                      "$HOME/modules"])
+    slurm.modules.extend(["jtp4kc", "anaconda-jtp", "gromacs-shirtsgroup/4.6.7"])
 
-sleep 1
-diagnostics
-
-""".format(**fields)
-    text += command
+    slurm.commands.append(command)
+    return slurm
 
 def reschedule(savefilename, pathtohere):
     cmd = "python " + pathtohere + " --save " + savefilename
-    submit_self(cmd)
+    slurm = get_slurm(cmd)
+
 
 def _filename(entry, key, index=0):
     filename = entry.files[key]
@@ -172,7 +156,7 @@ def daemon(savefilename):
         daemon_cancel = True
 
     while not daemon_cancel:
-        savemgr.save(savefilename)
+        savemgr.save()
         for entry in entries:
             timecheck(entry)
             try:

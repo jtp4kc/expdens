@@ -6,8 +6,10 @@ Created on Oct 11, 2015
 
 import os, sys
 import xml.etree.ElementTree as ETree
+import xml.dom.minidom as minidom
 import json, tempfile
 import dateutil.parser as dateparse
+from datetime import datetime
 
 ENC = json.JSONEncoder()
 DEC = json.JSONDecoder()
@@ -17,16 +19,39 @@ class SaveJobs():
     def __init__(self):
         self.jobs = []
         self.attr = dict()
+        self.filename = None
 
-    def save(self, filename=None):
-        elem = ETree.Element()
+    def save(self, filename=None, pp=True):
+        if filename != None:
+            self.filename = filename
+
+        elem = ETree.Element("save_jobs")
         elem.attrib = self.attr
-        elem.tag = "save_jobs"
         for job in self.jobs:
             elem.append(job._element())
 
-    def load(self, filename):
-        tree = ETree.parse(filename)
+        if self.filename == None:
+            output = tempfile.NamedTemporaryFile(mode="w+t", prefix="jobsave-",
+                suffix=".save", dir=".", delete=False)
+            self.filename = output.name
+        else:
+            output = open(self.filename, "w+t")
+        ETree.ElementTree(elem).write(output, None)
+        if pp:  # pretty-print
+            output.seek(0)  # SOF
+            # reparse in order to pretty-print the xml
+            # note: due to security issues with minidom, it is not used to
+            #    load xml, except that generated here
+            parsedom = minidom.parse(output)
+            output.seek(0)  # SOF
+            output.truncate(0)  # clear file
+            parsedom.writexml(output, addindent="    ", newl="\n")
+        output.close()
+
+    def load(self, filename=None):
+        if filename != None:
+            self.filename = filename
+        tree = ETree.parse(self.filename)
         root = tree.getroot()
         if root.tag == "save_jobs":
             self._process(root)
@@ -54,23 +79,28 @@ class SaveJobs():
             return False
 
 class SaveEntry():
+    """ Use only strings as names and as keys when saving data to this structure,
+    as it is serialized to xml which will not allow integers, floats, etc., as 
+    attribute names or values. 
+    Certain values are serialized as xml 'text' using JSON, which allows those 
+    values to be lists, integers, and most other python data types.
+    """
 
     def __init__(self, _child=None):
         self.jobname = ""
         self.files = dict()
         self.attr = dict()
 
-        if _child:
+        if _child != None:
             self._parse(_child)
 
     def _element(self):
-        elem = ETree.Element()
-        elem.tag = "job"
+        elem = ETree.Element("job")
         elem.attrib = self.attr
-        elem.set("name", self.jobname)
+        elem.set("name", str(self.jobname))
         for key in self.files:
-            e = ETree.Element()
-            e.tag = str(key)
+            e = ETree.Element("files")
+            e.set("type", str(key))
             e.text = ENC.encode(self.files[key])
             elem.append(e)
         return elem
@@ -80,7 +110,9 @@ class SaveEntry():
             self.jobname = xml_entry.get("name", "NO_NAME")
             self.attr = xml_entry.attrib
             for e in xml_entry:
-                self.files[e.tag] = DEC.decode(e.text)
+                if e.tag == "files":
+                    key = e.get("type", "")
+                    self.files[key] = DEC.decode(e.text)
 
 class LogScan:
 
@@ -195,10 +227,38 @@ class OutputScan:
                 self.fault_detected = True
                 self.fault_statement = line
 
-def submit_slurm(slurm_path, jobname, doprint=True):
+
+def submit_job(filename_of_slurm, jobname, doprint=True):
     import subprocess
     file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", slurm_path], stdout=file_)
+    subprocess.call(["sbatch", filename_of_slurm], stdout=file_)
+    file_.seek(0)  # reset to be able to read
+    line = file_.readline().replace("\n", "")
+    file_.close()  # file should be deleted shortly hereafter
+    num = line.split(" ")[-1]
+    if doprint:
+        print(line)
+        print("Sbatch'd Job " + jobname + " as jobname #" + num)
+    return num
+
+def submit_slurm(slurm_obj, filename, doprint=True):
+    """ Submit a slurm script that exists as a Slurm instance.
+    @param slurm_obj: Slurm instance - the data to write to file
+    @param filename: string - filename as which to save the slurm
+    """
+    import subprocess
+    jobname = slurm_obj.job_name
+    filename = str(filename)
+    if not filename.endswith(".slurm"):
+        filename += ".slurm"
+
+    slurmout = open(filename, "w")
+    for line in slurm_obj.compile():
+        slurmout.write(line)
+    slurmout.close()
+
+    file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
+    subprocess.call(["sbatch", filename], stdout=file_)
     file_.seek(0)  # reset to be able to read
     line = file_.readline().replace("\n", "")
     file_.close()  # file should be deleted shortly hereafter
@@ -234,7 +294,42 @@ class SerialDate:
 
         return retval
 
+if __name__ == "__main__":
+    # test
+    print("SAVE")
+    saver = SaveJobs()
+    job1 = SaveEntry()
+    job2 = SaveEntry()
 
+    saver.attr["name"] = "test-save"
+    job1.jobname = "1meth"
+    job1.files["tpr"] = "1meth.tpr"
+    job1.files["m>395@#$%@#%&!@)(<>?/"] = "junk"
+    job1.files[47] = "junk"
+    job1.attr["time"] = SerialDate.serialize(datetime.now())
+    job2.jobname = "benz"
+    job2.files["tpr"] = "benz.tpr"
+    job2.files["top"] = ["benz.top"]
+    job2.files["mdp"] = ["benz.mdp", "benz2.mdp"]
+
+    saver.add_job(job1)
+    saver.add_job(job2)
+
+    saver.save()
+    fname = saver.filename
+    for line in open(fname, "r"):
+        print(line.rstrip())
+
+    print("")
+    print("LOAD")
+    saver = SaveJobs()
+    saver.load(fname)
+    print("fnam: " + saver.filename)
+    print("attr: " + str(saver.attr))
+    for job in saver.jobs:
+        print("  jobn: " + job.jobname)
+        print("    file: " + str(job.files))
+        print("    attr: " + str(job.attr))
 
 
 

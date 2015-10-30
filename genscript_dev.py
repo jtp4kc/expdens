@@ -5,7 +5,6 @@ Created on Jun 19, 2015
 @author: Tyler P
 '''
 import sys, os
-import tempfile
 import traceback
 from optparse import OptionParser
 import math
@@ -15,8 +14,6 @@ from param_versions.version_2_0 import Keys
 import job_save
 import mdp_template
 import slurm_template
-from scipy.linalg.decomp_schur import feps
-from statsmodels.sandbox.nonparametric.tests.ex_smoothers import weights
 
 verbose = 0
 POST_COMMANDS = []  #
@@ -315,7 +312,7 @@ class SlurmGen(slurm_template.Slurm):
 
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            nnodes = int(math.ceil(ntasks / 20.0))
+            nnodes = int(math.ceil(self.opt_ntasks / 20.0))
         if nnodes == 0:
             nnodes = 1
         elif nnodes > 1:
@@ -564,7 +561,6 @@ class MDPGen(mdp_template.MDP):
             self.lmc_move = "metropolized-gibbs"
             self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_gibbs:
-            gibbs = fields['gibbs-delta']
             self.lmc_move = "gibbs"
             self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_metro:
@@ -784,7 +780,7 @@ def generate(opts):
             edr_files.append(os.path.join(folder, job_name + ".edr"))
             xvg_files.append(os.path.join(folder, job_name + ".xvg"))
             if not opts[KEYS._dryrun]:
-                num = submit_slurm(file_name, job_name + suffix)
+                num = job_save.submit_slurm(file_name, job_name + suffix)
 #                 global SAVE_LIBRARY
 #                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
             else:
@@ -980,7 +976,7 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
     return True
 
 def gen_exit(_):
-    sys.exit(0)
+    pass
 
 def gen_all(opts):
     opts[KEYS._chain_all] = True
@@ -1181,7 +1177,7 @@ def sim_submit(save_lib):
         if os.path.exists(filename) and filename.endswith('.slurm'):
             submitted = True
             job = os.path.basename(filename)
-            num = submit_slurm(filename, job)
+            num = job_save.submit_slurm(filename, job)
             save_lib[save_keys.jobs].append((job, num))
     if submitted:
         saver.write_options(save_lib[save_keys.name], save_lib)
