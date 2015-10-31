@@ -120,6 +120,14 @@ def setup_signalhandler():
 
     signal.signal(signal.SIGTERM, handler)
 
+def print_entry_messages(savefilename, jobname, savemgr, timestamp):
+    print("Daemon start - " + timestamp.isoformat())
+    print("    file: " + savefilename)
+    print("    jobn: " + jobname)
+    print("    numj: " + len(savemgr.jobs))
+    for job in savemgr.jobs:
+        print("      ->" + job.jobname)
+
 def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
     timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
@@ -188,7 +196,6 @@ def check_resubmit(entry, errors):
 
 def daemon(savefilename):
     timestamp = datetime.datetime.now()
-    print("Daemon start - " + timestamp.isoformat())
 
     savemgr = job_utils.SaveJobs()
     savemgr.load(savefilename)
@@ -204,6 +211,7 @@ def daemon(savefilename):
         daemon_cancel = True
 
     setup_signalhandler()
+    print_entry_messages(savefilename, jobname, savemgr, timestamp)
 
     while not daemon_cancel:
         try:
@@ -250,7 +258,7 @@ def daemon(savefilename):
                 print("Maximum execution time encountered, stopping.")
                 daemon_cancel = True
         except SigtermError:
-            print("Sigterm encountered, rescheduling.")
+            print("Rescheduling due to signal.")
             reschedule_self(jobname, savefilename)
             daemon_cancel = True
     print("Daemon exit - " + datetime.datetime.now().isoformat())
@@ -293,11 +301,10 @@ USAGE
             " These jobs are the ones that will be monitored and analyzed.")
         parser.add_argument('-s', '--submit', help="Instead of starting" +
             " immediately, submit a script using the slurm scheduler. The" +
-            " value passed will be used as the job name. default:[{default}]",
-            default="(unknown)")
+            " value passed will be used as the job name.", default=None)
         parser.add_argument('-t', '--time', help="Time to request on the" +
             " cluster, this will be the max time allowed for this to run." +
-            " Format: d-HH:mm:ss")
+            " Format: d-HH:mm:ss", default=None)
 
         # Process arguments
         args = parser.parse_args()
