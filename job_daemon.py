@@ -283,7 +283,7 @@ USAGE
             " immediately, submit a script using the slurm scheduler. The" +
             " value passed will be used as the job name. default:[{default}]",
             default="(unknown)")
-        parser.add_argutment('-t', '--time', help="Time to request on the" +
+        parser.add_argument('-t', '--time', help="Time to request on the" +
             " cluster, this will be the max time allowed for this to run." +
             " Format: d-HH:mm:ss")
 
