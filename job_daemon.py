@@ -125,8 +125,8 @@ def print_entry_messages(savefilename, jobname, savemgr, timestamp):
     print("    file: " + savefilename)
     print("    jobn: " + jobname)
     print("    numj: " + str(len(savemgr.jobs)))
-    for job in savemgr.jobs:
-        print("      ->" + job.jobname)
+    for job in savemgr.get_jobs():
+        print("       -> " + job.jobname)
 
 def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
@@ -208,10 +208,11 @@ def daemon(savefilename):
     daemon_cancel = False
     entries = savemgr.get_jobs()
     if not entries:
+        print("No jobs to monitor found in save file.")
         daemon_cancel = True
-
-    setup_signalhandler()
-    print_entry_messages(savefilename, jobname, savemgr, timestamp)
+    else :
+        setup_signalhandler()
+        print_entry_messages(savefilename, jobname, savemgr, timestamp)
 
     while not daemon_cancel:
         try:
