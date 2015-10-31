@@ -304,7 +304,7 @@ USAGE
 
         if save_name:
             if submit != None:
-                reschedule_self(submit, save_name, time)
+                reschedule_self(submit, save_name, time=time)
             else:
                 daemon(save_name)
         else:
