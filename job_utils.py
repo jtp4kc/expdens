@@ -237,8 +237,10 @@ def submit_job(filename_of_slurm, jobname, doprint=True):
     file_.close()  # file should be deleted shortly hereafter
     num = line.split(" ")[-1]
     if doprint:
-        print(line)
-        print("Sbatch'd Job " + jobname + " as jobname #" + num)
+        if num.isdigit():
+            print("sbatch'd job " + jobname + " as jobid #" + num)
+        else:
+            print(line)
     return num
 
 def submit_slurm(slurm_obj, filename, doprint=True):
@@ -246,7 +248,6 @@ def submit_slurm(slurm_obj, filename, doprint=True):
     @param slurm_obj: Slurm instance - the data to write to file
     @param filename: string - filename as which to save the slurm
     """
-    import subprocess
     jobname = slurm_obj.job_name
     filename = str(filename)
     if not filename.endswith(".slurm"):
@@ -257,16 +258,7 @@ def submit_slurm(slurm_obj, filename, doprint=True):
         slurmout.write(line)
     slurmout.close()
 
-    file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", filename], stdout=file_)
-    file_.seek(0)  # reset to be able to read
-    line = file_.readline().replace("\n", "")
-    file_.close()  # file should be deleted shortly hereafter
-    num = line.split(" ")[-1]
-    if doprint:
-        print(line)
-        print("Sbatch'd Job " + jobname + " as jobname #" + num)
-    return num
+    return submit_job(filename, jobname, doprint)
 
 class SerialDate:
     SEP = ":"

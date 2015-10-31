@@ -11,6 +11,7 @@ job_daemon -- monitors, restarts, and gives updates on running jobs on Rivanna
 @deffield    updated: 2015-10-11
 '''
 
+import os
 import sys
 import job_utils
 import traceback
@@ -59,14 +60,14 @@ class Attr():
         self.TIME = "last_checked"
 ATTR = Attr()
 
-def get_slurm(jobname, command, time="7-00:00:00"):
+def get_slurm(jobname, command, time="7-00:00:00", output="daemon.log"):
     slurm = Slurm()
     slurm.job_name = jobname + "-daemon"
     slurm.partition = "serial"
     slurm.nodes = 1
     slurm.ntasks = 1
     slurm.time = time
-    slurm.output = "daemon.log"
+    slurm.output = output
     slurm.signal = 15  # 15 = SIGTERM
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
@@ -80,7 +81,7 @@ def get_slurm(jobname, command, time="7-00:00:00"):
 
 def reschedule_self(jobname, savefilename, pathtohere=None, time=None):
     """ Submit a slurm script that will run this daemon with the same setup
-    @return: (int) job id number from slurm submission
+    @return: (str) job id number from slurm submission
     """
     if pathtohere == None:
         pathtohere = __file__
@@ -91,12 +92,17 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None):
         fname = "".join(fname.split(".")[:-1]) + ".slurm"
     else:
         fname += ".slurm"
+    count = 1
+    outname = "daemon-1.log"
+    while os.path.exists(outname):
+        count += 1
+        outname = "daemon-" + str(count) + ".log"
 
     cmd = "python " + pathtohere + " " + savefilename
     if time != None:
-        slurm = get_slurm(jobname, cmd, time=time)
+        slurm = get_slurm(jobname, cmd, time, outname)
     else:
-        slurm = get_slurm(jobname, cmd)
+        slurm = get_slurm(jobname, cmd, output=outname)
     return job_utils.submit_slurm(slurm, fname)
 
 def _filename(entry, key, index=0):
@@ -182,6 +188,8 @@ def check_resubmit(entry, errors):
 
 def daemon(savefilename):
     timestamp = datetime.datetime.now()
+    print("Daemon start - " + timestamp.isoformat())
+
     savemgr = job_utils.SaveJobs()
     savemgr.load(savefilename)
 
@@ -199,6 +207,7 @@ def daemon(savefilename):
 
     while not daemon_cancel:
         try:
+            print("Saving job status to file...")
             savemgr.save()
             for entry in entries:
                 timecheck(entry)
@@ -238,10 +247,13 @@ def daemon(savefilename):
                 # As a backup, use the total runtime as a signal to stop,
                 #    since on the cluster max runtime is currently 7 days
                 # If this is still running, it probably shouldn't be.
+                print("Maximum execution time encountered, stopping.")
                 daemon_cancel = True
         except SigtermError:
+            print("Sigterm encountered, rescheduling.")
             reschedule_self(jobname, savefilename)
             daemon_cancel = True
+    print("Daemon exit - " + datetime.datetime.now().isoformat())
 
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
