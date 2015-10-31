@@ -69,7 +69,9 @@ class SaveJobs():
             return False
 
     def get_jobs(self):
-        return [].extend(self.jobs)
+        retval = []
+        retval.extend(self.jobs)
+        return retval
 
     def remove_job(self, job):
         if isinstance(job, SaveEntry):
