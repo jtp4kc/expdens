@@ -98,7 +98,7 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None):
         count += 1
         outname = "daemon-" + str(count) + ".log"
 
-    cmd = "python " + pathtohere + " " + savefilename
+    cmd = "python -u " + pathtohere + " " + savefilename
     if time != None:
         slurm = get_slurm(jobname, cmd, time, outname)
     else:
