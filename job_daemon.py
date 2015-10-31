@@ -205,14 +205,15 @@ def daemon(savefilename):
     else:
         jobname = "(unknown)"
 
+    print_entry_messages(savefilename, jobname, savemgr, timestamp)
+
     daemon_cancel = False
     entries = savemgr.get_jobs()
-    if not entries:
+    if len(entries) == 0:
         print("No jobs to monitor found in save file.")
         daemon_cancel = True
     else :
         setup_signalhandler()
-        print_entry_messages(savefilename, jobname, savemgr, timestamp)
 
     while not daemon_cancel:
         try:
