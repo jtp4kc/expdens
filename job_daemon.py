@@ -88,7 +88,7 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None):
         pathtohere = pathtohere.replace(".pyc", ".py")
     fname = savefilename
     if "." in fname:
-        fname = fname.split(".")[:-1] + ".slurm"
+        fname = "".join(fname.split(".")[:-1]) + ".slurm"
     else:
         fname += ".slurm"
 
