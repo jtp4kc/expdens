@@ -124,7 +124,7 @@ def print_entry_messages(savefilename, jobname, savemgr, timestamp):
     print("Daemon start - " + timestamp.isoformat())
     print("    file: " + savefilename)
     print("    jobn: " + jobname)
-    print("    numj: " + len(savemgr.jobs))
+    print("    numj: " + str(len(savemgr.jobs)))
     for job in savemgr.jobs:
         print("      ->" + job.jobname)
 
