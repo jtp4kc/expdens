@@ -30,22 +30,22 @@ class SaveJobs():
         for job in self.jobs:
             elem.append(job._element())
 
-        if self.filename == None:
-            output = tempfile.NamedTemporaryFile(mode="w+t", prefix="jobsave-",
-                suffix=".save", dir=".", delete=False)
-            self.filename = output.name
-        else:
-            output = open(self.filename, "w+t")
-        ETree.ElementTree(elem).write(output, None)
+        text = ETree.tostring(elem)
         if pp:  # pretty-print
-            output.seek(0)  # SOF
             # reparse in order to pretty-print the xml
             # note: due to security issues with minidom, it is not used to
             #    load xml, except that generated here
-            parsedom = minidom.parse(output)
-            output.seek(0)  # SOF
-            output.truncate(0)  # clear file
-            parsedom.writexml(output, addindent="    ", newl="\n")
+            parsedom = minidom.parseString(text)
+            text = parsedom.toprettyxml(indent="    ")
+
+        if self.filename == None:
+            output = tempfile.NamedTemporaryFile(mode="w", prefix="jobsave-",
+                suffix=".save", dir=".", delete=False)
+            self.filename = output.name
+        else:
+            output = open(self.filename, "w")
+        for line in text:
+            output.write(line)
         output.close()
 
     def load(self, filename=None):
