@@ -78,7 +78,7 @@ def get_slurm(jobname, command, time="7-00:00:00", output="daemon.log"):
     slurm.ntasks = 1
     slurm.time = time
     slurm.output = output
-    slurm.signal = 14  # 14 = SIGALRM
+    slurm.signal = "ALRM"  # 14 = SIGALRM
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
 
@@ -146,7 +146,7 @@ def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
     timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
     currenttime = datetime.datetime.now()
-    relative = currenttime - timestamp
+    relative = timestamp - currenttime
     while relative.total_seconds() < mindelta:
         print(relative)
         entryname = entry.jobname
