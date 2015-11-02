@@ -287,8 +287,12 @@ def daemon(savefilename):
                 daemon_cancel = True
         except SignalError as sig:
             if sig.signum == 15:
-                print("Rescheduling due to signal.")
-                reschedule_self(jobname, savefilename)
+                if check_cancel():
+                    # user requested cancel
+                    print("Cancel requested by user")
+                else:
+                    print("Rescheduling due to signal.")
+                    reschedule_self(jobname, savefilename)
             else:
                 print("Daemon stopping due to signal.")
             daemon_cancel = True
