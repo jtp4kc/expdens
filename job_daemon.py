@@ -126,9 +126,13 @@ def _filename(entry, key, index=0):
 def setup_signalhandler():
     def handler(signum, _):  # signum, frame
         print("Signal encountered: " + str(signum))
-        raise SigtermError()
+        if signum == 14:
+            raise SigalarmError()
+        else:
+            raise SigtermError()
 
     signal.signal(signal.SIGALRM, handler)  # @UndefinedVariable
+    signal.signal(signal.SIGTERM, handler)
 
 def print_entry_messages(savefilename, jobname, savemgr, timestamp):
     print("Daemon start - " + timestamp.isoformat())
@@ -144,6 +148,7 @@ def timecheck(entry):
     currenttime = datetime.datetime.now()
     relative = currenttime - timestamp
     while relative.total_seconds() < mindelta:
+        print(relative)
         entryname = entry.jobname
         timetosleep = mindelta - relative.total_seconds()
         print("Sleep " + str(timetosleep) + "s to wait for entry " + entryname)
@@ -241,7 +246,8 @@ def daemon(savefilename):
 
 
                 except Exception as e:
-                    if isinstance(e, SigtermError):
+                    if (isinstance(e, SigtermError) or
+                        isinstance(e, SigalarmError)):
                         raise e
                     traceback.print_exc()
                     print("Error occurred while processing job " + entry.jobname)
