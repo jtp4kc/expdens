@@ -145,7 +145,7 @@ def timecheck(entry):
     timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
     currenttime = datetime.datetime.now()
     relative = currenttime - timestamp
-    if relative.total_seconds < 0:
+    if relative.total_seconds() < 0:
         print("Error: timestamp on file is newer than current time")
         print("stamp: " + str(timestamp))
         print("ctime: " + str(currenttime))
