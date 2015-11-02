@@ -42,6 +42,16 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
+class SigalarmError(Exception):
+    '''Exception to raise when SIGALRM is encountered.'''
+    def __init__(self, msg="SIGALRM"):
+        super(SigalarmError).__init__(type(self))
+        self.msg = "E: %s" % msg
+    def __str__(self):
+        return self.msg
+    def __unicode__(self):
+        return self.msg
+
 class SigtermError(Exception):
     '''Exception to raise when SIGTERM is encountered.'''
     def __init__(self, msg="SIGTERM"):
@@ -68,7 +78,7 @@ def get_slurm(jobname, command, time="7-00:00:00", output="daemon.log"):
     slurm.ntasks = 1
     slurm.time = time
     slurm.output = output
-    slurm.signal = 15  # 15 = SIGTERM
+    slurm.signal = 14  # 14 = SIGALRM
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
 
@@ -118,7 +128,7 @@ def setup_signalhandler():
         print("Signal encountered: " + str(signum))
         raise SigtermError()
 
-    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGALRM, handler)  # @UndefinedVariable
 
 def print_entry_messages(savefilename, jobname, savemgr, timestamp):
     print("Daemon start - " + timestamp.isoformat())
@@ -259,9 +269,12 @@ def daemon(savefilename):
                 # If this is still running, it probably shouldn't be.
                 print("Maximum execution time encountered, stopping.")
                 daemon_cancel = True
-        except SigtermError:
+        except SigalarmError:
             print("Rescheduling due to signal.")
             reschedule_self(jobname, savefilename)
+            daemon_cancel = True
+        except SigtermError:
+            print("Daemon stopping due to signal.")
             daemon_cancel = True
     print("Daemon exit - " + datetime.datetime.now().isoformat())
 
