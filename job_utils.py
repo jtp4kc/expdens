@@ -273,10 +273,10 @@ class SerialDate:
     @staticmethod
     def serialize(date_like):
         """ Converts datetime like object to string format
+        Note: datetime is not time-zone aware by default
         """
-        univ = date_like.utcnow()
         return (SerialDate.TAG + SerialDate.SEP + SerialDate.QUO +
-                univ.isoformat() + SerialDate.QUO)
+                date_like.isoformat() + SerialDate.QUO)
 
     @staticmethod
     def deserialize(string_repr):
