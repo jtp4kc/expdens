@@ -164,8 +164,8 @@ def check_log(entry):
     if ATTR.NUM_STEPS in entry.attr:
         entry.attr[ATTR.OLD_STEPS] = entry.attr[ATTR.NUM_STEPS]
     else:
-        entry.attr[ATTR.OLD_STEPS] = 0
-    entry.attr[ATTR.NUM_STEPS] = logscan.get_step_number()
+        entry.attr[ATTR.OLD_STEPS] = "0"
+    entry.attr[ATTR.NUM_STEPS] = str(logscan.get_step_number())
     return logscan
 
 def check_errors(entry, logscan):

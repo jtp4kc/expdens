@@ -96,10 +96,13 @@ class SaveEntry():
         if _child != None:
             self._parse(_child)
 
-    def _element(self):
+    def _element(self, check=True):
         elem = ETree.Element("job")
         elem.attrib = self.attr
         elem.set("name", str(self.jobname))
+        if check:
+            for key in elem.attrib:
+                elem.attrib[key] = str(elem.attrib[key])
         for key in self.files:
             e = ETree.Element("files")
             e.set("type", str(key))
