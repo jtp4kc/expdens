@@ -78,7 +78,7 @@ def get_slurm(jobname, command, time="7-00:00:00", output="daemon.log"):
     slurm.ntasks = 1
     slurm.time = time
     slurm.output = output
-    slurm.signal = "USR1"  # 14 = SIGALRM, 15 = SIGTERM, 16 = SIGUSR1
+    slurm.signal = 15  # 14 = SIGALRM, 15 = SIGTERM, 16 = SIGUSR1
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
 
@@ -213,6 +213,9 @@ def check_resubmit(entry, errors):
     entry.attr[ATTR.STATUS] = status
     return status, rsc_old, rsc_cpt
 
+def check_cancel():
+    return os.path.exists("daemon-cancel.txt")
+
 def daemon(savefilename):
     timestamp = datetime.datetime.now()
 
@@ -271,6 +274,10 @@ def daemon(savefilename):
                 # if anything is strange, such as temp, pressure, etc, produce
                 #    error file for user to read
 
+            if check_cancel():
+                print("Cancel requested by user.")
+                daemon_cancel = True
+
             runtime = datetime.datetime.now() - timestamp
             if runtime.total_seconds() > (7 * 24 * 60 * 60):  # 1 week
                 # As a backup, use the total runtime as a signal to stop,
@@ -279,7 +286,7 @@ def daemon(savefilename):
                 print("Maximum execution time encountered, stopping.")
                 daemon_cancel = True
         except SignalError as sig:
-            if sig.signum == 16:
+            if sig.signum == 15:
                 print("Rescheduling due to signal.")
                 reschedule_self(jobname, savefilename)
             else:
