@@ -134,7 +134,7 @@ def timecheck(entry):
     currenttime = datetime.datetime.now()
     relative = currenttime - timestamp
     while relative.total_seconds() < mindelta:
-        entryname = entry.name
+        entryname = entry.jobname
         timetosleep = mindelta - relative.total_seconds()
         print("Sleep " + str(timetosleep) + "s to wait for entry " + entryname)
         print("\tasleep at " + str(datetime.datetime.now()))
