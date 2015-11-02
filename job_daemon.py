@@ -42,20 +42,20 @@ class CLIError(Exception):
     def __unicode__(self):
         return self.msg
 
-class SigalarmError(Exception):
-    '''Exception to raise when SIGALRM is encountered.'''
-    def __init__(self, msg="SIGALRM"):
-        super(SigalarmError).__init__(type(self))
-        self.msg = "E: %s" % msg
-    def __str__(self):
-        return self.msg
-    def __unicode__(self):
-        return self.msg
+class SignalError(Exception):
+    '''Exception to raise when a signal is encountered.'''
+    def __init__(self, signum=-1):
+        super(SignalError).__init__(type(self))
 
-class SigtermError(Exception):
-    '''Exception to raise when SIGTERM is encountered.'''
-    def __init__(self, msg="SIGTERM"):
-        super(SigtermError).__init__(type(self))
+        self.signum = signum
+        msg = "SIGNAL " + str(signum)
+        if signum == 14:
+            msg = "14:SIGALRM"
+        elif signum == 15:
+            msg = "15:SIGTERM"
+        elif signum == 16:
+            msg = "16:SIGUSR1"
+
         self.msg = "E: %s" % msg
     def __str__(self):
         return self.msg
@@ -78,7 +78,7 @@ def get_slurm(jobname, command, time="7-00:00:00", output="daemon.log"):
     slurm.ntasks = 1
     slurm.time = time
     slurm.output = output
-    slurm.signal = "ALRM"  # 14 = SIGALRM
+    slurm.signal = "USR1"  # 14 = SIGALRM, 15 = SIGTERM, 16 = SIGUSR1
     slurm.mail_types.extend(["REQUEUE", "END", "FAIL"])
     slurm.mail_user = "jtp4kc@virginia.edu"
 
@@ -126,13 +126,11 @@ def _filename(entry, key, index=0):
 def setup_signalhandler():
     def handler(signum, _):  # signum, frame
         print("Signal encountered: " + str(signum))
-        if signum == 14:
-            raise SigalarmError()
-        else:
-            raise SigtermError()
+        raise(SignalError(signum))
 
     signal.signal(signal.SIGALRM, handler)  # @UndefinedVariable
     signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGUSR1, handler)  # @UndefinedVariable
 
 def print_entry_messages(savefilename, jobname, savemgr, timestamp):
     print("Daemon start - " + timestamp.isoformat())
@@ -246,8 +244,7 @@ def daemon(savefilename):
 
 
                 except Exception as e:
-                    if (isinstance(e, SigtermError) or
-                        isinstance(e, SigalarmError)):
+                    if isinstance(e, SignalError):
                         raise e
                     traceback.print_exc()
                     print("Error occurred while processing job " + entry.jobname)
@@ -275,12 +272,12 @@ def daemon(savefilename):
                 # If this is still running, it probably shouldn't be.
                 print("Maximum execution time encountered, stopping.")
                 daemon_cancel = True
-        except SigalarmError:
-            print("Rescheduling due to signal.")
-            reschedule_self(jobname, savefilename)
-            daemon_cancel = True
-        except SigtermError:
-            print("Daemon stopping due to signal.")
+        except SignalError as sig:
+            if sig.signum == 16:
+                print("Rescheduling due to signal.")
+                reschedule_self(jobname, savefilename)
+            else:
+                print("Daemon stopping due to signal.")
             daemon_cancel = True
     print("Daemon exit - " + datetime.datetime.now().isoformat())
 
