@@ -828,6 +828,7 @@ class MakeMDP(mdp_template.MDP):
     def core(self):
         self.reset()
         # define
+        self.include = "-I/nv/blue/jtp4kc/gromacs/itp/"
         self.ns_type = "grid"
         self.pbc = "xyz"
         self.rlist = "1.0"
@@ -1013,7 +1014,6 @@ class MakeMDP(mdp_template.MDP):
             tau_p = 5.0
             shake_tol = 5e-6
 
-        self.include = "-I/nv/blue/jtp4kc/gromacs/itp/"
         self.integrator = "md-vv"
         self.comm_mode = "Linear"
         self.nstcomm = "1"
