@@ -1758,19 +1758,19 @@ def launch(skip=False):
         os.system("sbatch job.slurm")
         os.chdir("..")
 
-def launch_fep(skip=False):
-    jobname = "1methsolv"
-    topfile = "1meth.top"
-    grofile = "1meth.gro"
+def launch_fep(skip=False, name="1meth", lname="1methylpyrrole"):
+    jobname = name + "solv"
+    topfile = name + ".top"
+    grofile = name + ".gro"
     mol = "TMP"
 
     mdpgen = MakeMDP()
 
     if not skip:
-        os.system("python -u ~/git/expdens/gromod.py -n t41meth-in.gro" +
-            " -o ligand.gro -i TMP -v -s -t 1methylpyrrole -m center")
-        os.system("python -u ~/git/expdens/gromod.py -n t41meth-in.gro" +
-                " -o solvent.gro -i SOL -v -t water")
+        os.system("python -u ~/git/expdens/gromod.py -n t4" + name +
+            "-in.gro -o ligand.gro -i TMP -v -s -t " + lname + " -m center")
+        os.system("python -u ~/git/expdens/gromod.py -n t4" + name +
+                "-in.gro -o solvent.gro -i SOL -v -t water")
         os.system("genbox -cp ligand.gro -cs solvent.gro" +
                 " -ci solvent.gro -p " + topfile + " -o " + grofile +
                 " -nmol 6500 -maxsol 10000")
@@ -1885,42 +1885,34 @@ USAGE
     try:
         # Setup argument parser
         parser = ArgumentParser(description=program_license)  # , formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-r", "--recursive", dest="recurse", action="store_true", help="recurse into subfolders [default: %(default)s]")
         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
-        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
         parser.add_argument('-s', '--skip', action='store_true',
             help="skip gromod")
         parser.add_argument('-f', '--fep', action='store_true',
             help="use fep explicitly")
+        parser.add_argument('-n', '--name', help="name of job", default=None)
+        parser.add_argument('-l', '--lname', help="title for grofile",
+                            default=None)
         parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='*')
 
         # Process arguments
         args = parser.parse_args()
 
-        paths = args.paths
         verbose = args.verbose
-        recurse = args.recurse
-        inpat = args.include
-        expat = args.exclude
 
         if verbose > 0:
             print("Verbose mode on")
-            if recurse:
-                print("Recursive mode on")
-            else:
-                print("Recursive mode off")
-
-        if inpat and expat and inpat == expat:
-            raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
-
-        for inpath in paths:
-            ### do something with inpath ###
-            print(inpath)
 
         if args.fep:
-            launch_fep(skip=args.skip)
+            if (args.name != None) and (args.lname != None):
+                launch_fep(skip=args.skip, name=args.name, lname=args.lname)
+            elif (args.name != None):
+                launch_fep(skip=args.skip, name=args.name)
+            elif (args.lname != None):
+                launch_fep(skip=args.skip, lname=args.lname)
+            else:
+                launch_fep(skip=args.skip)
         else:
             launch(skip=args.skip)
 
