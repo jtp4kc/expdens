@@ -291,7 +291,7 @@ def resubmit_job(entry, live, prev=False):
             cmd = wspc + " ".join(args) + " -cpi " + cptfile + "\n"
             writer.write(cmd)
         else:
-            writer.write(str)
+            writer.write(line)
     writer.close()
 
     if live:
@@ -300,13 +300,13 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Slurm code would be written as the following (tab" +
               " indented):")
         for line in writer:
-            print("\t" + str(line).strip())
+            print("\t" + line.strip())
 
     if live:
-        os.rename(tempfile, slurmfile)
+        os.rename(tmpfile, slurmfile)
         entry.attr[ATTR.JOB_ID] = job_utils.submit_job(slurmfile, entry.jobname)
     else:
-        print("DRYRUN: Would move " + tempfile + " to " + slurmfile)
+        print("DRYRUN: Would move " + tmpfile + " to " + slurmfile)
         print("DRYRUN: Would sbatch " + slurmfile + " and store job id")
 
 def analyze_job(entry, live):
