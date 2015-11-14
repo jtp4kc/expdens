@@ -235,8 +235,14 @@ class OutputScan:
 
 def submit_job(filename_of_slurm, jobname, doprint=True):
     import subprocess
+    here = os.getcwd()
+    fname = os.path.basename(filename_of_slurm)
+    slurmdir = os.path.dirname(filename_of_slurm)
+    if slurmdir:
+        os.chdir(slurmdir)
+
     file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", filename_of_slurm], stdout=file_)
+    subprocess.call(["sbatch", fname], stdout=file_)
     file_.seek(0)  # reset to be able to read
     line = file_.readline().replace("\n", "")
     file_.close()  # file should be deleted shortly hereafter
@@ -246,6 +252,8 @@ def submit_job(filename_of_slurm, jobname, doprint=True):
             print("sbatch'd job " + jobname + " as jobid #" + num)
         else:
             print(line)
+
+    os.chdir(here)
     return num
 
 def submit_slurm(slurm_obj, filename, doprint=True):
