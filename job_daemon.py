@@ -278,8 +278,8 @@ def resubmit_job(entry, live, prev=False):
         # inspired by xml ElementTree.toString
 
     for line in open(slurmfile, "r"):
-        if line.strip().startswith("rm ") and (os.path.basename(
-                                                        tprfile) in line):
+        tname = os.path.basename(tprfile)
+        if line.strip().startswith("rm ") and (tname in line):
             pass
         elif ("grompp" in line):
             pass
@@ -293,6 +293,8 @@ def resubmit_job(entry, live, prev=False):
             cmd = wspc + " ".join(args) + " -cpi " + cptfile + "\n"
             writer.write(cmd)
         else:
+            if tname in line:
+                print("Uh... " + line)
             writer.write(line)
     writer.close()
 
