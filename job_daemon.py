@@ -15,6 +15,7 @@ import os
 import sys
 import job_utils
 import traceback
+import tempfile
 import time
 import datetime
 import signal
@@ -231,7 +232,7 @@ def check_resubmit(entry, errors):
 
 def resubmit_job(entry, live, prev=False):
     slurmfile = _filename(entry, "slurm")
-    tempfile = slurmfile + ".tmp"
+    tmpfile = slurmfile + ".tmp"
     outfile = _filename(entry, "out")
     tprfile = _filename(entry, "tpr")
 
@@ -263,7 +264,7 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Would backup file " + slurmfile)
 
     if live:
-        writer = open(tempfile, "w")
+        writer = open(tmpfile, "w")
     else:
         def null():
             pass
@@ -290,9 +291,9 @@ def resubmit_job(entry, live, prev=False):
     writer.close()
 
     if live:
-        print("Slurm code copied to temporary file " + tempfile)
+        print("Slurm code copied to temporary file " + tmpfile)
     else:
-        print("DRYRUN: Slurm code would be writen as the following (tab" +
+        print("DRYRUN: Slurm code would be written as the following (tab" +
               " indented):")
         for line in writer:
             print("\t" + line.strip())
