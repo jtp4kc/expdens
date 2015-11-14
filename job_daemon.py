@@ -278,7 +278,8 @@ def resubmit_job(entry, live, prev=False):
         # inspired by xml ElementTree.toString
 
     for line in open(slurmfile, "r"):
-        if line.strip().startswith("rm ") and (tprfile in line):
+        if line.strip().startswith("rm ") and (os.path.basename(
+                                                        tprfile) in line):
             pass
         elif ("grompp" in line):
             pass
