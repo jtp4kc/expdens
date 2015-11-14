@@ -155,25 +155,26 @@ def print_entry_messages(savefilename, jobname, savemgr, timestamp):
 
 def timecheck(entry):
     mindelta = 60 * 10  # ten minutes
-    timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
     currenttime = datetime.datetime.now()
-    relative = currenttime - timestamp
-    if relative.total_seconds() < 0:
-        print("Error: timestamp on file is newer than current time")
-        print("stamp: " + str(timestamp))
-        print("ctime: " + str(currenttime))
-        print(" diff: " + str(relative))
-    else:
-        while relative.total_seconds() < mindelta:
-            entryname = entry.jobname
-            timetosleep = mindelta - relative.total_seconds()
-            print("Sleep " + str(timetosleep) + "s to wait for entry " +
-                  entryname)
-            print("\tasleep at " + str(datetime.datetime.now()))
-            time.sleep(timetosleep)
-            currenttime = datetime.datetime.now()
-            print("\tawake at " + str(currenttime))
-            relative = currenttime - timestamp
+    if ATTR.TIME in entry.attr:
+        timestamp = job_utils.SerialDate.deserialize(entry.attr[ATTR.TIME])
+        relative = currenttime - timestamp
+        if relative.total_seconds() < 0:
+            print("Error: timestamp on file is newer than current time")
+            print("stamp: " + str(timestamp))
+            print("ctime: " + str(currenttime))
+            print(" diff: " + str(relative))
+        else:
+            while relative.total_seconds() < mindelta:
+                entryname = entry.jobname
+                timetosleep = mindelta - relative.total_seconds()
+                print("Sleep " + str(timetosleep) + "s to wait for entry " +
+                      entryname)
+                print("\tasleep at " + str(datetime.datetime.now()))
+                time.sleep(timetosleep)
+                currenttime = datetime.datetime.now()
+                print("\tawake at " + str(currenttime))
+                relative = currenttime - timestamp
     entry.attr[ATTR.TIME] = job_utils.SerialDate.serialize(currenttime)
 
 def check_log(entry):
