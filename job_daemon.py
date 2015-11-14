@@ -293,8 +293,6 @@ def resubmit_job(entry, live, prev=False):
             cmd = wspc + " ".join(args) + " -cpi " + cptfile + "\n"
             writer.write(cmd)
         else:
-            if tname in line:
-                print("Uh... " + line)
             writer.write(line)
     writer.close()
 
