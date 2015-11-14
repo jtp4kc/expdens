@@ -222,7 +222,7 @@ def check_resubmit(entry, errors):
             status = ename
             msg = message
             if status == "Cancelled":
-                if "due to time limit" in message:
+                if "DUE TO TIME LIMIT" in message:
                     rsc_cpt = True
             if status == "Fault":
                 rsc_old = True
@@ -266,11 +266,15 @@ def resubmit_job(entry, live, prev=False):
     if live:
         writer = open(tmpfile, "w")
     else:
-        def null():
-            pass
-        writer = []  # create a false-file, inspired by xml ElementTree.toString
-        writer.write = writer.append
-        writer.close = null
+        class Facade(list):
+            def __init__(self):
+                super(list)
+                self.write = self.append
+
+            def close(self):
+                pass
+        writer = Facade()  # create a false, file-like object
+        # inspired by xml ElementTree.toString
 
     for line in open(slurmfile, "r"):
         if line.startswith("rm ") and (tprfile in line):
@@ -349,7 +353,7 @@ def analyze_job(entry, live):
                 nstart=start, nlength=delta, doCenter=True, doVMD=True,
                 timedelta=dt)
         else:
-            print("DRYRRUN: Would make a call to visualizer to generate vmd" +
+            print("DRYRUN: Would make a call to visualizer to generate vmd" +
                   " instructions using " + xtcfile)
 
 
@@ -404,8 +408,10 @@ def daemon(savefilename, live=False):
                     msg = " is believed to have encountered a "
                     if status.endswith("ed"):
                         msg = " is believed to have "
-                    elif status.endswith("ing"):
+                    if status == "Running":
                         msg = " is believed to be "
+                    if status == "Cancelled":
+                        msg = " is believed to have been "
                     print("Job " + entry.jobname + msg + status)
                     out = out.splitlines()
                     for line in out:
