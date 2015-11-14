@@ -504,7 +504,7 @@ def generate_runentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 def generate_warnentry(entry):
@@ -521,7 +521,7 @@ def generate_warnentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 def generate_finentry(entry):
@@ -538,7 +538,7 @@ def generate_finentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 def generate_cnclentry(entry):
@@ -555,7 +555,7 @@ def generate_cnclentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 def generate_faltentry(entry):
@@ -572,7 +572,7 @@ def generate_faltentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 
@@ -590,7 +590,7 @@ def generate_failentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm(entry.jobname))
+    writer.write(textfor_slurm(entry.jobname.replace("test-", "")))
     writer.close()
 
 def textfor_log(running=False, cancel=False, fail=False):
