@@ -277,7 +277,7 @@ def resubmit_job(entry, live, prev=False):
         # inspired by xml ElementTree.toString
 
     for line in open(slurmfile, "r"):
-        if line.startswith("rm ") and (tprfile in line):
+        if line.strip().startswith("rm ") and (tprfile in line):
             pass
         elif ("grompp" in line):
             pass
@@ -300,7 +300,7 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Slurm code would be written as the following (tab" +
               " indented):")
         for line in writer:
-            print("\t" + line.strip())
+            print("\t" + line.rstrip())
 
     if live:
         os.rename(tmpfile, slurmfile)
@@ -348,13 +348,16 @@ def analyze_job(entry, live):
             else:
                 print("DRYRUN: Would " + cmd)
 
+        tpr2 = os.path.join(newfldr, os.path.basename(tprfile))
+        xtc2 = os.path.join(newfldr, os.path.basename(xtcfile))
+        xvg2 = os.path.join(newfldr, os.path.basename(xvgfile))
         if live:
-            visualizer.visualize(tprfile, xtcfile, xvgfile, resname,
+            visualizer.visualize(tpr2, xtc2, xvg2, resname,
                 nstart=start, nlength=delta, doCenter=True, doVMD=True,
                 timedelta=dt)
         else:
             print("DRYRUN: Would make a call to visualizer to generate vmd" +
-                  " instructions using " + xtcfile)
+                  " instructions using " + xtc2)
 
 
 def check_cancel():
