@@ -406,7 +406,7 @@ def daemon(savefilename, live=False):
                     elif status.endswith("ing"):
                         msg = " is believed to be "
                     print("Job " + entry.jobname + msg + status)
-                    out = out.splitlines(keepends=True)
+                    out = out.splitlines()
                     for line in out:
                         print("\t" + line)
 
