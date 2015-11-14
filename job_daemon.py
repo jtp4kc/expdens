@@ -406,6 +406,7 @@ def daemon(savefilename, live=False):
                     elif status.endswith("ing"):
                         msg = " is believed to be "
                     print("Job " + entry.jobname + msg + status)
+                    out = out.splitlines(keepends=True)
                     for line in out:
                         print("\t" + line)
 
@@ -947,7 +948,6 @@ def test_daemon(savename):
                fail_entry]
     for entry in entries:
         savemgr.add_job(entry)
-        entry = run_entry
         entry.attr[ATTR.JOB_ID] = "900001"
         entry.attr[ATTR.LOG_DELTA] = "1.0"
         entry.attr[ATTR.RESNAME] = "TMP"
