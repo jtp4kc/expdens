@@ -300,7 +300,7 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Slurm code would be written as the following (tab" +
               " indented):")
         for line in writer:
-            print("\t" + line.replace("\n", ""))
+            print("\t" + str(line).strip())
 
     if live:
         os.rename(tempfile, slurmfile)
