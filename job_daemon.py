@@ -25,6 +25,7 @@ import visualizer
 
 from argparse import ArgumentParser
 from slurm_template import Slurm
+from job_utils import SaveEntry
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -503,7 +504,7 @@ def generate_runentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 def generate_warnentry(entry):
@@ -520,7 +521,7 @@ def generate_warnentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 def generate_finentry(entry):
@@ -537,7 +538,7 @@ def generate_finentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 def generate_cnclentry(entry):
@@ -554,7 +555,7 @@ def generate_cnclentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 def generate_faltentry(entry):
@@ -571,7 +572,7 @@ def generate_faltentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 
@@ -589,7 +590,7 @@ def generate_failentry(entry):
     writer.close()
 
     writer = open(slurm, "w")
-    writer.write(textfor_slurm())
+    writer.write(textfor_slurm(entry.jobname))
     writer.close()
 
 def textfor_log(running=False, cancel=False, fail=False):
@@ -875,16 +876,16 @@ Performance:        4.028        5.959
 """
     return text
 
-def textfor_slurm():
+def textfor_slurm(jobname="1meth-24states"):
     text = """#!/bin/sh
-#SBATCH --job-name=1meth-24states-00
+#SBATCH --job-name=""" + jobname + """-00
 #SBATCH --partition=serial
 #SBATCH --nodes=1
 #SBATCH --ntasks=20
 #SBATCH --time=7-00:00:00
 #SBATCH --signal=15 --comment="15 = SIGTERM"
-#SBATCH --output=/sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/1meth-24states-00/1meth-24states.out
-#SBATCH --workdir=/sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/1meth-24states-00/
+#SBATCH --output=/sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/""" + jobname + """-00/""" + jobname + """.out
+#SBATCH --workdir=/sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/""" + jobname + """-00/
 #SBATCH --checkpoint=06:00:00
 #SBATCH --checkpoint-dir=/scratch/jtp4kc/checkpoints
 #SBATCH --mail-type=REQUEUE
@@ -907,25 +908,25 @@ sleep 1
 diagnostics
 
 #Change the job status to 'SUBMITTED'
-echo "SUBMITTED 1meth-24states-00 `date`" >> ../jobstatus.txt
+echo "SUBMITTED """ + jobname + """-00 `date`" >> ../jobstatus.txt
 echo "Job Started at `date`"
 
 #PRODUCTION
-rm 1meth-24states.tpr
-grompp_d -c ../t41meth-00-in.gro -p ../t41meth.top -n ../t41meth.ndx -f 1meth-24states-00.mdp -o 1meth-24states.tpr -maxwarn 15
-if [ -f 1meth-24states.tpr ];
+rm """ + jobname + """.tpr
+grompp_d -c ../t41meth-00-in.gro -p ../t41meth.top -n ../t41meth.ndx -f """ + jobname + """-00.mdp -o """ + jobname + """.tpr -maxwarn 15
+if [ -f """ + jobname + """.tpr ];
 then
     echo "MD Simulation launching..."
-    mdrun_d ${THREADINFO} -deffnm 1meth-24states
+    mdrun_d ${THREADINFO} -deffnm """ + jobname + """
 else
-    echo "Error generating 1meth-24states.tpr"
+    echo "Error generating """ + jobname + """.tpr"
 fi
 
-mv /sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/1meth-24states.par 1meth-24states.par
+mv /sfs/lustre/scratch/jtp4kc/simulations/1meth-mstates/""" + jobname + """.par """ + jobname + """.par
 
 
 
-echo "FINISHED 1meth-24states-00 `date`" >> ../jobstatus.txt
+echo "FINISHED """ + jobname + """-00 `date`" >> ../jobstatus.txt
 # print end time
 echo
 echo "Job Ended at `date`"
