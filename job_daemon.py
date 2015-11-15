@@ -256,6 +256,7 @@ def resubmit_job(entry, live, prev=False):
         cptfile = _filename(entry, "_prev")
     else:
         cptfile = _filename(entry, "cpt")
+    cptfpath = os.path.relpath(cptfile, os.path.dirname(slurmfile))
 
     if live:
         backup.backup_file(".", outfile, copy=True)
@@ -275,11 +276,16 @@ def resubmit_job(entry, live, prev=False):
             def close(self):
                 pass
         writer = Facade()  # create a false, file-like object
-        # inspired by xml ElementTree.toString
+        #    inspired by xml ElementTree.toString
 
+    wkdr = None
     for line in open(slurmfile, "r"):
         tname = os.path.basename(tprfile)
-        if line.strip().startswith("rm ") and (tname in line):
+        if ("SBATCH" in line) and ("workdir=" in line):
+            offset = line.find("workdir=")
+            half = line.replace("workdir=", "")[offset:]
+            wkdr = half.split()[0]
+        elif line.strip().startswith("rm ") and (tname in line):
             pass
         elif ("grompp" in line):
             pass
@@ -290,7 +296,9 @@ def resubmit_job(entry, live, prev=False):
             if "-cpi" in args:
                 i = args.indexOf("-cpi")
                 args = args[:i] + args[(i + 2):]
-            cmd = wspc + " ".join(args) + " -cpi " + cptfile + "\n"
+            if wkdr:
+                cptfile = os.path.join(wkdr, cptfile)
+            cmd = wspc + " ".join(args) + " -cpi " + cptfpath + "\n"
             writer.write(cmd)
         else:
             writer.write(line)
@@ -431,7 +439,7 @@ def daemon(savefilename, live=False):
                     if oldcpt:
                         resubmit_job(entry, live, prev=True)
                     elif cpt:
-                        resubmit_job(entry, live, prev=True)
+                        resubmit_job(entry, live, prev=False)
                     else:  # analyze
                         analyze_job(entry, live)
 
@@ -514,11 +522,11 @@ def generate_warnentry(entry):
     slurm = entry.files["slurm"]
 
     writer = open(log, "w")
-    writer.write(textfor_log())
+    writer.write(textfor_log(running=True))
     writer.close()
 
     writer = open(out, "w")
-    writer.write(textfor_out(warn=True))
+    writer.write(textfor_out(running=True, warn=True))
     writer.close()
 
     writer = open(slurm, "w")
