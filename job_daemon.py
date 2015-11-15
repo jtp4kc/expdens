@@ -401,7 +401,7 @@ def daemon(savefilename, live=False):
                 savemgr.save()
             else:
                 print("DRYRUN: Would save job status")
-            for entry in entries:
+            for entry in entries[:]:  # make a slice copy, entries might change
                 # a previous daemon has already marked this file as ignore
                 if ATTR.IGNORE in entry.attr:
                     if entry.attr[ATTR.IGNORE] == "true":
