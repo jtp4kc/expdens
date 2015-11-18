@@ -1155,7 +1155,6 @@ def gen_exit(*args):
     pass
 
 def gen_rand(opts):
-    opts[KEYS.subcommand] = 'rand'
     opts[KEYS.mdr_count] = 1
     opts[KEYS.sim_fixed_weights] = False
     opts[KEYS.sim_weights] = False
@@ -1167,9 +1166,9 @@ def gen_rand(opts):
     handle_job(opts)
 
 def gen_equil(opts):
-    randname = opts[KEYS.job_name] + "-rand"
-    opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
-    opts[KEYS.subcommand] = 'equil'
+    if opts[KEYS.mdr_randsrc] is None:
+        randname = opts[KEYS.job_name] + "-rand"
+        opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
     opts[KEYS.mdr_count] = 1
     opts[KEYS.sim_fixed_weights] = False
     opts[KEYS.sim_weights] = False
@@ -1181,9 +1180,9 @@ def gen_equil(opts):
     handle_job(opts)
 
 def gen_array(opts):
-    randname = opts[KEYS.job_name] + "-rand"
-    opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
-    opts[KEYS.subcommand] = 'array'
+    if opts[KEYS.mdr_randsrc] is None:
+        randname = opts[KEYS.job_name] + "-rand"
+        opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
     opts[KEYS.sim_fixed_weights] = True
     opts[KEYS.sim_weights] = True
     opts[KEYS.sim_fixed_lambda] = False
