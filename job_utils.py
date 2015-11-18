@@ -9,6 +9,8 @@ import xml.etree.ElementTree as ETree
 import xml.dom.minidom as minidom
 import json, tempfile
 import dateutil.parser as dateparse
+import random
+import math
 from datetime import datetime
 
 ENC = json.JSONEncoder()
@@ -124,9 +126,12 @@ class LogScan:
     def __init__(self, path):
         self.filepath = path
         self.oldscan = []
+        self.midscan = []
         self.newscan = []
         self.weights = None
         self.num_of_steps = None
+        self.sim_time = None
+        self.log_delta = None
         self.finish_detected = False
         self.cancel_detected = False
         self.failure_detected = False
@@ -147,8 +152,9 @@ class LogScan:
             if capture_fail:
                 capture_fail = False
                 self.fail_statement = line
-            if 'Step' in line and 'Time' in line and 'Lambda' in line:
-                self.oldscan = self.newscan
+            if 'Step' in line and 'Time' in line:
+                self.oldscan = self.midscan
+                self.midscan = self.newscan
                 self.newscan = []
             if 'Received the TERM signal' in line:
                 self.cancel_detected = True
@@ -159,14 +165,16 @@ class LogScan:
                 self.finish_detected = True
             self.newscan.append(line)
         file_.close()
-        if not (self.newscan or self.oldscan):
+        if (len(self.newscan) == 0) and (len(self.midscan) == 0):
             raise Exception('Tail command appears to have failed.')
 
         # assume a short scan indicates the file was cut off
         #     which could get fooled by dumping the state matrix, but it's only
         #     one frame off
-        if len(self.oldscan) > len(self.newscan):
-            self.newscan = self.oldscan
+        if len(self.midscan) > len(self.newscan):
+            self.newscan = self.midscan
+            self.midscan = self.oldscan
+        self.oldscan = None  # Free up memory, I suppose
 
         count = 0
         capture_weights = False
@@ -177,7 +185,8 @@ class LogScan:
                 if splt:
                     try:
                         self.num_of_steps = int(splt[0])
-                    except Exception as e:
+                        self.sim_time = float(splt[1])
+                    except ValueError as e:
                         tb = sys.exc_info()[2]
                         print(tb + ":" + str(e))
             if line.isspace():
@@ -196,11 +205,27 @@ class LogScan:
                 capture_weights = True
                 self.weights = []
 
+        if len(self.midscan) > 1:
+            line = self.midscan[1]
+            splt = line.split()
+            try:
+                num_steps_prev = int(splt[0])
+                self.log_delta = self.num_of_steps - num_steps_prev
+            except ValueError as e:
+                tb = sys.exc_info()[2]
+                print(tb + ":" + str(e))
+
     def get_wanglandau_weights(self):
         return self.weights
 
     def get_step_number(self):
         return self.num_of_steps
+
+    def get_time_value(self):
+        return self.sim_time
+
+    def get_log_delta(self):
+        return self.log_delta
 
 class OutputScan:
 
@@ -232,6 +257,179 @@ class OutputScan:
                 self.fault_detected = True
                 self.fault_statement = line
 
+class MDPReader:
+
+    def __init__(self, path):
+        self.filepath = path
+
+    def scan(self):
+        if not os.path.exists(self.filepath):
+            raise Exception('Input file not found ' + self.filepath)
+
+        results = dict()
+        for line in open(self.filepath, "r"):
+            line = line.strip()
+            if not line.startswith(";"):
+                keyval = line.split("=")
+                if len(keyval) > 1:
+                    key = keyval[0].strip()
+                    val = keyval[1].strip()
+                    results[key] = val
+
+        return results
+
+class ExtractFrames:
+
+    def __init__(self, xtcpath, tprpath=None, logpath=None, mdppath=None):
+        if tprpath is None:
+            tprpath = xtcpath.replace(".xtc", ".tpr")
+        if logpath is None:
+            logpath = xtcpath.replace(".xtc", ".log")
+        if mdppath is None:
+            mdppath = xtcpath.replace(".xtc", ".mdp")
+        self.xtc = xtcpath
+        self.tpr = tprpath
+        self.log = logpath
+        self.mdp = mdppath
+        self.num_of_steps = None
+        self.log_delta = None
+        self.estimate = 0
+
+    def estimate_available_frames(self):
+        logscan = LogScan(self.log)
+        logscan.scan()
+        log_delta = logscan.get_log_delta()
+        num_of_steps = logscan.get_step_number()
+        sim_time = logscan.get_time_value()
+
+        if num_of_steps is None:
+            raise Exception("Number of steps could not be determined from log" +
+                            " file")
+
+        if log_delta is None:
+            mdpread = MDPReader(self.mdp)
+            options = mdpread.scan()
+            if "nstxtcout" in options:
+                log_delta = int(options["nstxtcout"])
+            elif "nstxout-compressed" in options:
+                log_delta = int(options["nstxout-compressed"])
+            elif "nstxout_compressed" in options:
+                log_delta = int(options["nstxout_compressed"])
+            else:
+                raise Exception("Number of steps per frame could not be" +
+                                " determined from log or mdp file")
+
+        self.num_of_steps = num_of_steps
+        self.log_delta = log_delta
+        self.time_per_step = sim_time / num_of_steps
+        self.estimate = num_of_steps / log_delta + 1
+        return self.estimate
+
+    def get_gro_frames(self, n_frames=1, method=0, framenums=False):
+        """ Extract frames in .gro representation and return filenames
+        @param n_frames: (int) number of frames desired out of extraction, >= 1
+        @param method: (int) one of four methods:
+                        0: (default) segment and return middle frames
+                        1: equally spaced by segment, always includes last frame
+                        2: random within a segment
+                        3: equally spaced by segment, always include first frame
+                        4: on segment boundaries, includes first and last frames
+        Example: ("-" represents frames, "'" signifies segment boundary, 
+                  "X" marks a selected frame, n_frames = 3)
+            simulation line 0---------------------------------------------47
+            method 0 (cntr) '      X       '       X       '       X      '
+            method 1 (rght) '              X               X              X
+            method 2 (rand) '          X   '    X          '         X    '
+            method 3 (left) X              X               X              '
+            method 4 (even) X                      X                      X
+        @param framenums: (bool) If only interested in where the frames would
+                be chosen, set to True - returns a list of frame numbers
+        """
+        if n_frames < 1:
+            raise ValueError('Cannot extract less than one frame.')
+        if self.num_of_steps is None or self.log_delta is None:
+            self.estimate_available_frames()
+
+        seg_locator = 0.5  # multiplier within segment, default middle
+        if method == 1:
+            seg_locator = 1  # right hand side
+        elif method == 2:
+            seg_locator = -1  # random
+        elif method == 3:
+            seg_locator = 0  # left hand side
+        elif method == 4:
+            seg_locator = -2  #  special, then left hand side
+
+        nseg = n_frames
+        if seg_locator == -2:
+            nseg -= 1
+        n_est = self.estimate - 1
+
+        if nseg > 0:
+            len_seg = n_est / float(nseg)  # length of a segment
+            offset = n_est - int(len_seg * nseg)  # extra frames
+        else:
+            len_seg = n_est
+            offset = 0
+        if (method == 3):
+            offset = 0  # ensure first frame is chosen
+
+        frames = []
+        num_left = n_frames
+        if n_est <= n_frames:
+            frames = range(n_est + 1)
+        else:
+            if seg_locator == -2:
+                seg_locator = 1
+                frames.append(0)
+                num_left -= 1
+
+            rand = random.Random()
+            for n in range(num_left):
+                if seg_locator < 0:
+                    place = rand.randint(0, int(len_seg) - 1)
+                else:
+                    place = int(len_seg * seg_locator)
+                frames.append(offset + int(n * len_seg) + place)
+            if ((method == 1) or (method == 4)) and (len(frames) > 0):
+                frames[-1] = n_est
+
+        if framenums:
+            return frames  # exit ############################################
+
+        if (not os.path.exists(self.xtc)) or (not os.path.exists(self.tpr)):
+            raise Exception('Simulation files not found ' + self.xtc +
+                ' and/or ' + self.tpr)
+        cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
+            ' -b {timeb} -e {timee} &>../trjconv{index}.log')
+
+        if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
+            os.environ['GMXBIN'] not in os.environ['PATH']):
+            print('Adding GMXBIN to PATH...')
+            os.environ['PATH'] = os.environ['PATH'] + ':' + os.environ['GMXBIN']
+
+        gro_files = []
+        time_delta = 1
+        if self.time_per_step is not None:
+            time_delta = self.time_per_step
+        ndigits = int(math.log(len(frames), 10)) + 1  # for printing
+        for (i, n) in zip(frames, range(len(frames))):
+            suffix = ("-{0:0>" + str(ndigits) + "}").format(n)
+            modif = 0.5 * time_delta
+            # frame * step/frame * time/step = time
+            timeval = (i * self.log_delta) * time_delta
+            tb = timeval - modif
+            te = timeval + modif
+            gro_name = self.xtc.replace(".xtc", suffix + '-in.gro')
+            fmt = cmnd.format(xtc=self.xtc, tpr=self.tpr, gro=gro_name,
+                timeb=tb, timee=te, index=suffix)
+            os.system(fmt)
+            if not os.path.exists(gro_name):
+                raise Exception('Extraction of starting frames' +
+                    ' unsuccessful - Err: ' + gro_name)
+            gro_files.append(gro_name)
+
+        return gro_files
 
 def submit_job(filename_of_slurm, jobname, doprint=True):
     import subprocess

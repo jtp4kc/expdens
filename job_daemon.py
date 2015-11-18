@@ -244,7 +244,11 @@ def resubmit_job(entry, live, prev=False):
     file_.seek(0)
     for line in file_:
         if old_id in line:
-            found = True
+            if " CG " in line:
+                # this job appears to have gotten stuck, and is not valid
+                print("Job " + old_id + " appears to be invalid, resubmitting.")
+            else:
+                found = True
             break
     file_.close()
     if found:
