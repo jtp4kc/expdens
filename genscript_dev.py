@@ -1356,11 +1356,14 @@ def setup(args, opts, parser, cur_dir, save_name):
     # output run options
     if opts[KEYS.job_name]:
         param_name = opts[KEYS.job_name] + param.file_ext
-        param_out = backup.backup_file('./', param_name, verbose=verbose)
     else:
         param_name = param.file_ext
+
+    if opts[KEYS._dryrun]:
+        print("DRYRUN: Would write full option file " + param_name)
+    else:
         param_out = backup.backup_file('', param_name, verbose=verbose)
-    param.write_options(param_out, opts)
+        param.write_options(param_out, opts)
 
     opts[KEYS._calling_dir] = os.path.join(cur_dir, '')
     opts[KEYS._params] = args.par
