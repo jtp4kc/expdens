@@ -849,8 +849,8 @@ def make_job(opts, jobsave=None):
 
     wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
     fir = FilesystemImpactRegister(directory=wrkdir)
-    path = os.path.join(backup.expandrelpath(opts[KEYS.script_dir], wrkdir), "")
-    indir = os.path.join(backup.expandrelpath(opts[KEYS.input_dir], wrkdir), "")
+    path = os.path.join(backup.expandrelpath(opts[KEYS.script_dir]), "")
+    indir = os.path.join(backup.expandrelpath(opts[KEYS.input_dir]), "")
 
     if not os.path.isdir(path):
         fir.add_mkdir(path)
@@ -1011,7 +1011,7 @@ def make_job(opts, jobsave=None):
         fir.describe()
         for entry in to_submit:
             print("DRYRUN: Would sbatch job " + entry.jobname)
-    if opts[KEYS._submit]:
+    else:
         fir.execute()
         init_gro = [None] * n_sim
         if frames is not None:
@@ -1026,10 +1026,10 @@ def make_job(opts, jobsave=None):
             if gro is not None:
                 os.system("cp " + gro + " " + os.path.join(wrkdir,
                                                            entry.files["gro"]))
-            jobid = job_utils.submit_job(entry.files["slurm"] , entry.jobname)
-            entry.attr[ATTR.JOB_ID] = jobid
-            if jobid.isdigit():
-                num = int(jobid)
+
+            if opts[KEYS._submit]:
+                jid = job_utils.submit_job(entry.files["slurm"], entry.jobname)
+                entry.attr[ATTR.JOB_ID] = jid
         for gro in init_gro:
             if (gro is not None) and os.path.exists(gro):
                 os.remove(gro)
