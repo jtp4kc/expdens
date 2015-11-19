@@ -1001,7 +1001,7 @@ def make_job(opts, jobsave=None):
     if opts[KEYS.sim_fixed_lambda]:
         analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
-    bepname = os.path.join(jobdir, "analyze-" + opts[KEYS.job_name] + ".bep")
+    bepname = os.path.join(path, "analyze-" + opts[KEYS.job_name] + ".bep")
     fir.add_create(WriterEntry(bepname, analysis))
 
     if opts[KEYS._dryrun]:
