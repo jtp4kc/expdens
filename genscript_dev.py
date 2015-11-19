@@ -881,6 +881,8 @@ def make_job(opts, jobsave=None):
             print("Trajectory to use to make random input frames: " + randxtc)
         gro_gen = job_utils.ExtractFrames(randxtc)
         try:
+            # TODO: perhaps make this more general
+            os.system("module load gromacs-shirtsgroup/4.6.7")
             frames = gro_gen.get_gro_frames(n_sim, framenums=True)
         except Exception as e:
             print(e)
