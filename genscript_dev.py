@@ -876,6 +876,8 @@ def make_job(opts, jobsave=None):
                                            os.path.dirname(opts[KEYS._params]))
         if not os.path.exists(randxtc):
             randxtc = backup.expandrelpath(randname, wrkdir)
+        if verbose > 0:
+            print("Trajectory to use to make random input frames: " + randxtc)
         gro_gen = job_utils.ExtractFrames(randxtc)
         try:
             frames = gro_gen.get_gro_frames(n_sim, framenums=True)
