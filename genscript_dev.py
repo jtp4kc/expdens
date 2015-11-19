@@ -1359,7 +1359,7 @@ def setup(args, opts, parser, cur_dir, save_name):
     else:
         param_name = param.file_ext
 
-    if opts[KEYS._dryrun]:
+    if args.dryrun:
         print("DRYRUN: Would write full option file " + param_name)
     else:
         param_out = backup.backup_file('', param_name, verbose=verbose)
