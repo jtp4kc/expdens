@@ -939,10 +939,10 @@ def make_job(opts, jobsave=None):
 
         fir.add_create(CompiledEntry(slurmname, builder))
 
-        tpr_files.append(tprname)
-        xtc_files.append(xtcname)
-        gro_files.append(groname)
-        xvg_files.append(xvgname)
+        tpr_files.append(os.path.relpath(tprname, jobdir))
+        xtc_files.append(os.path.relpath(xtcname, jobdir))
+        gro_files.append(os.path.relpath(groname, jobdir))
+        xvg_files.append(os.path.relpath(xvgname, jobdir))
 
         frame_ps = opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]  # ps b/w frames
         jobentry = job_utils.SaveEntry()
@@ -1002,7 +1002,7 @@ def make_job(opts, jobsave=None):
     if opts[KEYS.sim_fixed_lambda]:
         analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
-    bepname = os.path.join(wrkdir, "analyze-" + opts[KEYS.job_name] + ".bep")
+    bepname = os.path.join(jobdir, "analyze-" + opts[KEYS.job_name] + ".bep")
     fir.add_create(WriterEntry(bepname, analysis))
 
     if opts[KEYS._dryrun]:
