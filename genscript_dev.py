@@ -123,7 +123,7 @@ class MyKeys(Keys):
         self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
         self.add_key(self.mdr_randsrc, section, "Path to xtc to use for" +
             " initial configurations. There must also be a .tpr by the same" +
-            " name")
+            " name (relative to here, to parfile, or to workdir, in order)")
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
             self.mdr_genseed, self.mdr_seedrand)
         ################################################
@@ -870,7 +870,12 @@ def make_job(opts, jobsave=None):
     frames = None
     if opts[KEYS.mdr_randsrc] is not None:
         randname = opts[KEYS.mdr_randsrc]
-        randxtc = os.path.join(wrkdir, backup.expandrelpath(randname, wrkdir))
+        randxtc = backup.expandrelpath(randname)
+        if not os.path.exists(randxtc):
+            randxtc = backup.expandrelpath(randname,
+                                           os.path.dirname(opts[KEYS._params]))
+        if not os.path.exists(randxtc):
+            randxtc = backup.expandrelpath(randname, wrkdir)
         gro_gen = job_utils.ExtractFrames(randxtc)
         try:
             frames = gro_gen.get_gro_frames(n_sim, framenums=True)
