@@ -18,7 +18,6 @@ import slurm_template
 from abc import abstractmethod, ABCMeta
 import job_utils
 import job_daemon
-from blaze.expr.core import path
 
 verbose = 0
 POST_COMMANDS = []  #
