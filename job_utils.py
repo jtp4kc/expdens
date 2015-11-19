@@ -401,7 +401,7 @@ class ExtractFrames:
             raise Exception('Simulation files not found ' + self.xtc +
                 ' and/or ' + self.tpr)
         cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
-            ' -b {timeb} -e {timee} &>../trjconv{index}.log')
+            ' -b {timeb} -e {timee} &>trjconv{index}.log')
 
         if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
             os.environ['GMXBIN'] not in os.environ['PATH']):
