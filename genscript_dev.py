@@ -144,7 +144,6 @@ class MyKeys(Keys):
         self.run_array = 'setup-array-of-jobs'
         self._submit = 'submit-jobs'  # private
         self._dryrun = 'dry-run'  # private
-        self._chain_all = 'GEN_ALL'  # private
 
         section = "Process Control"
         self.add_key(self.subcommand, section=section, updater=_subcomment)
@@ -1308,7 +1307,7 @@ def setup(args, opts, parser, cur_dir, save_name):
     opts[KEYS.verbosity] = verbose
 
     if args.subcommand:
-        subcommand = args.subcommand
+        subcommand = args.subcommand[0]
         if subcommand not in SUBS:
             subcommand = 'exit'
     else:
@@ -1359,24 +1358,19 @@ def setup(args, opts, parser, cur_dir, save_name):
     else:
         param_name = param.file_ext
 
+    opts[KEYS._calling_dir] = os.path.join(cur_dir, '')
+    opts[KEYS._params] = args.par
+    opts[KEYS._params_out] = param_name
+
+    opts[KEYS._job_name] = opts[KEYS.job_name]  # backup the original name
+    opts[KEYS._submit] = args.submit
+    opts[KEYS._dryrun] = args.dryrun
+
     if args.dryrun:
         print("DRYRUN: Would write full option file " + param_name)
     else:
         param_out = backup.backup_file('', param_name, verbose=verbose)
         param.write_options(param_out, opts)
-
-    opts[KEYS._calling_dir] = os.path.join(cur_dir, '')
-    opts[KEYS._params] = args.par
-    opts[KEYS._params_out] = param_name
-    opts[KEYS._chain_all] = False
-    if args._flag:
-        flag = args._flag[0]
-        if flag == KEYS._chain_all:
-            opts[KEYS._chain_all] = True
-
-    opts[KEYS._job_name] = opts[KEYS.job_name]  # backup the original name
-    opts[KEYS._submit] = args.submit
-    opts[KEYS._dryrun] = args.dryrun
 
     # perform requested file output and job submissions
     SUBS[subcommand](opts)
@@ -1412,8 +1406,7 @@ def main(argv=None):
     parser = ArgumentParser(description="Generates Rivanna SLURM scripts for" +
         " running Gromacs simulations", prog=name_,
         formatter_class=RawTextHelpFormatter)
-    parser.add_argument("subcommand", help=subhelp)
-    parser.add_argument("_flag", default=None, help="N/A", nargs='*')
+    parser.add_argument("subcommand", help=subhelp, nargs='*')
     parser.add_argument("-v", "--verbose", help="Increase output frequency" +
         " and detail. Stacks three times.", action="count")
     parser.add_argument("--par", help="Optional configuration file to" +
