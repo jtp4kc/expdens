@@ -394,7 +394,7 @@ class FilesystemImpactRegister:
                 print("Creating directory " + path)
             os.mkdir(path)
 
-        to_remove = [].extend(self.files_to_remove)
+        to_remove = list(self.files_to_remove)
         for entry in self.files_to_create:
             if entry.filename in to_remove:
                 to_remove.remove(entry.filename)
