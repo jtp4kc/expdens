@@ -142,8 +142,8 @@ class MyKeys(Keys):
         self.subcommand = 'subcommand'
         self.run_mdp = 'create-mdp'
         self.run_array = 'setup-array-of-jobs'
-        self._submit = 'submit-jobs'  # private
-        self._dryrun = 'dry-run'  # private
+        self._submit = '_submit-jobs'  # private
+        self._dryrun = '_dry-run'  # private
 
         section = "Process Control"
         self.add_key(self.subcommand, section=section, updater=_subcomment)
