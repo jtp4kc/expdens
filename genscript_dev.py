@@ -18,6 +18,7 @@ import slurm_template
 from abc import abstractmethod, ABCMeta
 import job_utils
 import job_daemon
+from blaze.expr.core import path
 
 verbose = 0
 POST_COMMANDS = []  #
@@ -854,6 +855,7 @@ def make_job(opts, jobsave=None):
 
     if not os.path.isdir(path):
         fir.add_mkdir(path)
+    bep_dir = path  # in case it decides to move
 
     tpr_files = []
     xtc_files = []
@@ -939,19 +941,19 @@ def make_job(opts, jobsave=None):
         builder.file_out = os.path.join(path, job_name + suffix, job_name +
                                         ".out")
         loc = os.path.dirname(slurmname)
-        builder.file_mdp = os.path.relpath(mdpname, loc)
-        builder.file_gro = os.path.relpath(groname, loc)
-        builder.file_top = os.path.relpath(topname, loc)
-        builder.file_ndx = os.path.relpath(ndxname, loc)
-        builder.file_tpr = os.path.relpath(tprname, loc)
+        builder.file_mdp = backup.expandrelpath(mdpname, loc)
+        builder.file_gro = backup.expandrelpath(groname, loc)
+        builder.file_top = backup.expandrelpath(topname, loc)
+        builder.file_ndx = backup.expandrelpath(ndxname, loc)
+        builder.file_tpr = backup.expandrelpath(tprname, loc)
         builder.extra = extra
 
         fir.add_create(CompiledEntry(slurmname, builder))
 
-        tpr_files.append(os.path.relpath(tprname, jobdir))
-        xtc_files.append(os.path.relpath(xtcname, jobdir))
-        gro_files.append(os.path.relpath(groname, jobdir))
-        xvg_files.append(os.path.relpath(xvgname, jobdir))
+        tpr_files.append(backup.expandrelpath(tprname, bep_dir))
+        xtc_files.append(backup.expandrelpath(xtcname, bep_dir))
+        gro_files.append(backup.expandrelpath(groname, bep_dir))
+        xvg_files.append(backup.expandrelpath(xvgname, bep_dir))
 
         frame_ps = opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]  # ps b/w frames
         jobentry = job_utils.SaveEntry()
@@ -1011,7 +1013,7 @@ def make_job(opts, jobsave=None):
     if opts[KEYS.sim_fixed_lambda]:
         analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
-    bepname = os.path.join(path, "analyze-" + opts[KEYS.job_name] + ".bep")
+    bepname = os.path.join(bep_dir, "analyze-" + opts[KEYS.job_name] + ".bep")
     fir.add_create(WriterEntry(bepname, analysis))
 
     if opts[KEYS._dryrun]:
@@ -1367,6 +1369,8 @@ def setup(args, opts, parser, cur_dir, save_name):
         param_name = opts[KEYS.job_name] + param.file_ext
     else:
         param_name = param.file_ext
+    wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
+    param_name = os.path.join(wrkdir, param_name)
 
     opts[KEYS._calling_dir] = os.path.join(cur_dir, '')
     opts[KEYS._params] = args.par
