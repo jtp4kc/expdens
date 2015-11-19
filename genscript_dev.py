@@ -1382,6 +1382,8 @@ def setup(args, opts, parser, cur_dir, save_name):
     if args.dryrun:
         print("DRYRUN: Would write full option file " + param_name)
     else:
+        if not os.path.isdir(wrkdir):
+            os.mkdir(wrkdir)
         param_out = backup.backup_file('', param_name, verbose=verbose)
         param.write_options(param_out, opts)
 
