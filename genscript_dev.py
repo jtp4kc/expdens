@@ -852,6 +852,9 @@ def make_job(opts, jobsave=None):
     path = os.path.join(backup.expandrelpath(opts[KEYS.script_dir], wrkdir), "")
     indir = os.path.join(backup.expandrelpath(opts[KEYS.input_dir], wrkdir), "")
 
+    if not os.path.isdir(path):
+        fir.add_mkdir(path)
+
     tpr_files = []
     xtc_files = []
     gro_files = []
