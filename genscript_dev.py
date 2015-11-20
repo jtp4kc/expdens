@@ -427,7 +427,6 @@ class SlurmGen(slurm_template.Slurm):
         self.extra = None
 
         self.opt_jobname = ""
-        self.opt_suffix = ""
         self.opt_ntasks = 1
         self.opt_workdir = None
         self.opt_queuetime = "2-00:00:00"
@@ -486,7 +485,7 @@ class SlurmGen(slurm_template.Slurm):
         if self.calc_wt:
             queuetime = self.walltime(self.opt_timens, self.opt_ntasks, nnodes)
 
-        self.job_name = self.opt_jobname + self.opt_suffix
+        self.job_name = self.opt_jobname
         self.partition = partition
         self.nodes = nnodes
         self.ntasks = self.opt_ntasks
@@ -827,8 +826,7 @@ class CompiledEntry(FilesystemImpactRegister.StreamEntry):
 
 def handle_job(opts):
     job = opts[KEYS.job_name]
-    wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
-    savename = os.path.join(wrkdir, job + ".save")
+    savename = job + ".save"
     jobsave = job_utils.SaveJobs()
     jobsave.attr["name"] = job
 
@@ -921,7 +919,7 @@ def make_job(opts, jobsave=None):
 
         eqtime = opts[KEYS.sim_time] / 2
         temp = opts[KEYS.sim_temperature]
-        extra = ("\npython ~/git/alchemical-analysis/alchemical_analysis" +
+        extra = ("python ~/git/alchemical-analysis/alchemical_analysis/" +
             "alchemical_analysis.py -p dhdl -r 8 -s " + str(eqtime) + " -t " +
             str(temp) + " -u kBT -v -w -x &> alchem-" + job_name + ".out\n")
 
@@ -935,8 +933,7 @@ def make_job(opts, jobsave=None):
         slurmworkdir = backup.expandrelpath(jobdir, loc)
         if slurmworkdir == ".":
             slurmworkdir = None
-        builder.opt_jobname = job_name
-        builder.opt_suffix = suffix
+        builder.opt_jobname = job_name + suffix
         builder.opt_ntasks = opts[KEYS.mdr_threads]
         builder.opt_workdir = slurmworkdir
         builder.opt_timens = opts[KEYS.sim_time]
