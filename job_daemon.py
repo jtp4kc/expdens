@@ -108,11 +108,13 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None,
         pathtohere = __file__
     if pathtohere.endswith(".pyc"):
         pathtohere = pathtohere.replace(".pyc", ".py")
+    print(savefilename)
     fname = savefilename
     if "." in fname:
         fname = "".join(fname.split(".")[:-1]) + ".slurm"
     else:
         fname += ".slurm"
+    print(fname)
     opdir = os.path.dirname(fname)
     count = 1
     outname = "daemon-1.log"
