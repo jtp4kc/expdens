@@ -76,6 +76,7 @@ class Attr():
         self.TIME = "last_checked"
         self.IGNORE = "daemon_ignore"
         self.JOB_ID = "job_id"
+        self.LOG_NSTEP = "log_steps_per_frame"
         self.LOG_DELTA = "log_simtime_delta"
         self.RESNAME = "residue_name"
 ATTR = Attr()
@@ -332,8 +333,9 @@ def analyze_job(entry, live):
     xtcfile = _filename(entry, "xtc")
     xvgfile = _filename(entry, "xvg")
 
-    start = int(entry.attr[ATTR.OLD_STEPS])
-    end = int(entry.attr[ATTR.NUM_STEPS])
+    nstep = int(entry.attr[ATTR.LOG_NSTEP])
+    start = int(entry.attr[ATTR.OLD_STEPS]) / nstep
+    end = int(entry.attr[ATTR.NUM_STEPS]) / nstep
     delta = end - start
     dt = float(entry.attr[ATTR.LOG_DELTA])
     resname = entry.attr[ATTR.RESNAME]
@@ -450,6 +452,8 @@ def daemon(savefilename, live=False):
                         resubmit_job(entry, live, prev=False)
                     else:  # analyze
                         analyze_job(entry, live)
+                        if status == "Cancelled":  # if not reschedule
+                            remove_job = True
 
                     if remove_job:
                         # mark as ignore and remove from current list

@@ -963,6 +963,7 @@ def make_job(opts, jobsave=None):
         jobentry = job_utils.SaveEntry()
         jobentry.jobname = job_name + suffix
         jobentry.attr[ATTR.RESNAME] = opts[KEYS.ligand]
+        jobentry.attr[ATTR.LOG_NSTEP] = opts[KEYS.sim_nstout]
         jobentry.attr[ATTR.LOG_DELTA] = frame_ps
         jobentry.attr[ATTR.JOB_ID] = ""
         jobentry.files["slurm"] = slurmname
