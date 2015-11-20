@@ -401,7 +401,7 @@ class MDP:
                    ("lmc-seed", self.lmc_seed),
                    ("lmc-move", self.lmc_move),
                    ("lmc-gibbsdelta", self.lmc_gibbsdelta),
-                   ("init-lambda=weights", self.init_lambda_weights),
+                   ("init-lambda-weights", self.init_lambda_weights),
                    ("weight-equil-wl-delta", self.weight_equil_wl_delta)]
 
         if self.check_empty(varlist):
