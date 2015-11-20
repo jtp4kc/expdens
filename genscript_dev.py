@@ -588,6 +588,8 @@ class MDPGen(mdp_template.MDP):
         self.opt_wlincr = 0
         self.opt_wlscale = 0
         self.opt_wlratio = 0
+        self.cmt_weights1 = None
+        self.cmt_weights2 = None
 
     def set_ensemble(self, code="NVT"):
         self.ensemble = code
@@ -734,6 +736,8 @@ class MDPGen(mdp_template.MDP):
             self.lmc_move = "no"
         if self.initial_weights:
             self.init_lambda_weights = str(self.opt_wlweights)
+            self.comment_weights1 = self.cmt_weights1
+            self.comment_weights2 = self.cmt_weights2
         else:
             self.weight_equil_wl_delta = "0.001"
 
@@ -1051,38 +1055,62 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
         os.mkdir(dir_)
     os.chdir(dir_)
 
-    fep, coul, vdw, weights = [], [], [], []
-    fep.extend(opts[KEYS.sim_fep_values])
-    coul.extend(opts[KEYS.sim_coul_values])
-    vdw.extend(opts[KEYS.sim_vdw_values])
-    weights.extend(opts[KEYS.sim_weight_values])
+    fep = list(opts[KEYS.sim_fep_values])
+    coul = list(opts[KEYS.sim_coul_values])
+    vdw = list(opts[KEYS.sim_vdw_values])
+    weights = list(opts[KEYS.sim_weight_values])
     if verbose > 2:
         print('Debug, genstates')
 
+    orig_weight = list(weights)
+    add_weight = [1.0] * len(weights)
+
+    wgtxcoup = int(opts[KEYS.sim_genxcoupled])
+    wgtxuncp = int(opts[KEYS.sim_genxuncupled])
+    # coupled
     if verbose > 2:
-        print('Value coup {0}'.format(opts[KEYS.sim_wgtxcoupled]))
-    if opts[KEYS.sim_wgtxcoupled] > 0:
+        print('Value coup {0}'.format(wgtxcoup))
+    if type(wgtxcoup) in (int, float):
         if verbose > 2:
-            print('making more states, coupled')
-        for i in range(1, len(weights)):
-            weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
+            print('weighting coupled state')
+        add_weight[0] = add_weight[0] * wgtxcoup
+    if type(wgtxcoup) in (list, tuple):
+        if verbose > 2:
+            print('weighting coupled state')
+        for i in range(len(wgtxcoup)):
+            if (i < len(add_weight)) and (wgtxcoup[i] > 0):
+                add_weight[i] = add_weight[i] * wgtxcoup[i]
+    # uncoupled
     if verbose > 2:
         print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
-    if opts[KEYS.sim_wgtxuncupld] > 0:
+    if type(wgtxuncp) in (int, float):
         if verbose > 2:
-            print('making more states, uncoupled')
+            print('weighting uncoupled state')
         if len(weights) > 0:
-            weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
-    if opts[KEYS.sim_genxcoupled] > 0:
-        fep = [0.0] * int(opts[KEYS.sim_genxcoupled]) + fep
-        vdw = [0.0] * int(opts[KEYS.sim_genxcoupled]) + vdw
-        coul = [0.0] * int(opts[KEYS.sim_genxcoupled]) + coul
-        weights = [weights[0]] * int(opts[KEYS.sim_genxcoupled]) + weights
-    if opts[KEYS.sim_genxuncupld] > 0:
-        fep = fep + [0.0] * int(opts[KEYS.sim_genxuncupld])
-        vdw = vdw + [1.0] * int(opts[KEYS.sim_genxuncupld])
-        coul = coul + [1.0] * int(opts[KEYS.sim_genxuncupld])
-        weights = weights + [weights[-1]] * int(opts[KEYS.sim_genxuncupld])
+            add_weight[-1] = add_weight[-1] * wgtxuncp
+    if type(wgtxuncp) in (list, tuple):
+        if verbose > 2:
+            print('weighting coupled state')
+        for i in range(len(wgtxuncp)):
+            if (i <= len(add_weight)) and (wgtxuncp[-i] > 0):
+                add_weight[-i] = add_weight[-i] * wgtxuncp[-i]
+    # apply modifcations
+    for i in range(len(weights)):
+        wgt = add_weight[i] / add_weight[0]
+        weights[i] += math.log(wgt)
+
+    genxcoup = int(opts[KEYS.sim_genxcoupled])
+    genxuncp = int(opts[KEYS.sim_genxuncupled])
+    if genxcoup > 0:
+        fep = [0.0] * genxcoup + fep
+        vdw = [0.0] * genxcoup + vdw
+        coul = [0.0] * genxcoup + coul
+        weights = [weights[0]] * genxcoup + weights
+    if genxuncp > 0:
+        fep = fep + [0.0] * genxuncp
+        vdw = vdw + [1.0] * genxuncp
+        coul = coul + [1.0] * genxuncp
+        weights = weights + [weights[-1]] * genxuncp
     if verbose > 2:
         print(weights)
 
@@ -1100,14 +1128,22 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
         coul_lambdas += '{0:0.2f} '.format(c)
         vdw_lambdas += '{0:0.2f} '.format(v)
 
-    wl_weights = ''
+    wl_weights = ""
+    orig = None
+    addw = None
     if opts[KEYS.sim_weights]:
+        orig = "original weights: "
+        addw = "additional ln(factor): "
         for w in weights:
             wl_weights += '{0:0.5f} '.format(w)
+        for w in orig_weight:
+            orig += '{0:0.5f} '.format(w)
+        for w in add_weight:
+            addw += '{0:0.5f} '.format(w)
         if not len(fep) == len(weights):
             print('Number of weights not equal to number of states, please' +
                 ' address')
-            return True
+            return None
 
     equil = ""
     if opts[KEYS.sim_fixed_weights] and opts[KEYS.sim_weights]:
@@ -1155,6 +1191,8 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     builder.opt_weightsequil = equil
     builder.opt_lmcseed = lmcseed
     builder.opt_gibbsdelta = int(opts[KEYS.sim_gibbs_delta])
+    builder.cmt_weights1 = orig
+    builder.cmt_weights2 = addw
     builder.opt_wlweights = wl_weights
     builder.opt_wlincr = opts[KEYS.sim_incrementor]
     builder.opt_wlscale = opts[KEYS.sim_wl_scale]
