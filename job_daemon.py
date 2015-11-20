@@ -25,7 +25,6 @@ import visualizer
 
 from argparse import ArgumentParser
 from slurm_template import Slurm
-from job_utils import SaveEntry
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -116,11 +115,11 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None,
         fname += ".slurm"
     opdir = os.path.dirname(fname)
     count = 1
-    outname = "daemon-1.log"
+    outname = "daemon-" + jobname + "-1.log"
     outpath = os.path.join(opdir, outname)
     while os.path.exists(outpath):
         count += 1
-        outname = "daemon-" + str(count) + ".log"
+        outname = "daemon-" + jobname + "-" + str(count) + ".log"
         outpath = os.path.join(opdir, outname)
 
     extr = ""
