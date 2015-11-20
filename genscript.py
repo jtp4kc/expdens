@@ -922,11 +922,13 @@ def make_job(opts, jobsave=None):
             return
         fir.add_create(CompiledEntry(mdpname, buildmdp))
 
-        eqtime = opts[KEYS.sim_time] / 2
+        prefix = job_name + suffix
+        eqtime = (opts[KEYS.sim_time] * 1000.0) / 2
         temp = opts[KEYS.sim_temperature]
         extra = ("python ~/git/alchemical-analysis/alchemical_analysis/" +
-            "alchemical_analysis.py -p dhdl -r 8 -s " + str(eqtime) + " -t " +
-            str(temp) + " -u kBT -v -w -x &> alchem-" + job_name + ".out\n")
+            "alchemical_analysis.py -p " + prefix + " -r 8 -s " + str(eqtime) +
+            " -t " + str(temp) + " -u kBT -v -w -x &> alchem-" + job_name +
+            ".out\n")
 
         loc = os.path.dirname(slurmname)
         builder = SlurmGen()
