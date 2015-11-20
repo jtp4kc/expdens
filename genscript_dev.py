@@ -1084,7 +1084,7 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
                 add_weight[i] = add_weight[i] * wgtxcoup[i]
     # uncoupled
     if verbose > 2:
-        print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
+        print('Value uncoup {0}'.format(wgtxuncp))
     if type(wgtxuncp) in (int, float):
         if (len(weights) > 0) and (wgtxcoup > 0):
             if verbose > 2:
@@ -1102,7 +1102,7 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
         weights[i] += math.log(wgt)
 
     genxcoup = int(opts[KEYS.sim_genxcoupled])
-    genxuncp = int(opts[KEYS.sim_genxuncupled])
+    genxuncp = int(opts[KEYS.sim_genxuncupld])
     if genxcoup > 0:
         fep = [0.0] * genxcoup + fep
         vdw = [0.0] * genxcoup + vdw
