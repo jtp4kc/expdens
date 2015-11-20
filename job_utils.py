@@ -188,7 +188,7 @@ class LogScan:
                         self.sim_time = float(splt[1])
                     except ValueError as e:
                         tb = sys.exc_info()[2]
-                        print(tb + ":" + str(e))
+                        print(str(tb) + ":" + str(e))
             if line.isspace():
                 capture_weights = False
             if capture_weights:
@@ -213,7 +213,7 @@ class LogScan:
                 self.log_delta = self.num_of_steps - num_steps_prev
             except ValueError as e:
                 tb = sys.exc_info()[2]
-                print(tb + ":" + str(e))
+                print(str(tb) + ":" + str(e))
 
     def get_wanglandau_weights(self):
         return self.weights
