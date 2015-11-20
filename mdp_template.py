@@ -159,6 +159,8 @@ class MDP:
         self.comment_coupling2 = None
         self.comment_coupling3 = None
         self.comment_velocities1 = None
+        self.comment_weights1 = None
+        self.comment_weights2 = None
         self.comment_constraints1 = None
         self.comment_constraints2 = None
 
@@ -401,6 +403,8 @@ class MDP:
                    ("lmc-seed", self.lmc_seed),
                    ("lmc-move", self.lmc_move),
                    ("lmc-gibbsdelta", self.lmc_gibbsdelta),
+                   ("", self.comment_weights1),
+                   ("", self.comment_weights2),
                    ("init-lambda-weights", self.init_lambda_weights),
                    ("weight-equil-wl-delta", self.weight_equil_wl_delta)]
 
