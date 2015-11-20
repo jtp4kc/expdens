@@ -925,6 +925,7 @@ def make_job(opts, jobsave=None):
             "alchemical_analysis.py -p dhdl -r 8 -s " + str(eqtime) + " -t " +
             str(temp) + " -u kBT -v -w -x &> alchem-" + job_name + ".out\n")
 
+        loc = os.path.dirname(slurmname)
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
         builder.use_mpi = opts[KEYS.sim_use_mpi]
@@ -934,12 +935,11 @@ def make_job(opts, jobsave=None):
         builder.opt_jobname = job_name
         builder.opt_suffix = suffix
         builder.opt_ntasks = opts[KEYS.mdr_threads]
-        builder.opt_workdir = jobdir
+        builder.opt_workdir = backup.expandrelpath(jobdir, loc)
         builder.opt_timens = opts[KEYS.sim_time]
         builder.opt_queuetime = opts[KEYS.mdr_queue_time]
-        builder.file_out = os.path.join(path, job_name + suffix, job_name +
-                                        ".out")
-        loc = os.path.dirname(slurmname)
+        builder.file_out = job_name + ".out"
+
         builder.file_mdp = backup.expandrelpath(mdpname, loc)
         builder.file_gro = backup.expandrelpath(groname, loc)
         builder.file_top = backup.expandrelpath(topname, loc)
