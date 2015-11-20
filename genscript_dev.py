@@ -932,10 +932,13 @@ def make_job(opts, jobsave=None):
         builder.calc_wt = opts[KEYS.auto_calc_wt]
         builder.gromacs5 = opts[KEYS.sim_gromacs5]
 
+        slurmworkdir = backup.expandrelpath(jobdir, loc)
+        if slurmworkdir == ".":
+            slurmworkdir = None
         builder.opt_jobname = job_name
         builder.opt_suffix = suffix
         builder.opt_ntasks = opts[KEYS.mdr_threads]
-        builder.opt_workdir = backup.expandrelpath(jobdir, loc)
+        builder.opt_workdir = slurmworkdir
         builder.opt_timens = opts[KEYS.sim_time]
         builder.opt_queuetime = opts[KEYS.mdr_queue_time]
         builder.file_out = job_name + ".out"
