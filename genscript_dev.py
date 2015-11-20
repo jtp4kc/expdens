@@ -1271,7 +1271,7 @@ def sim_status(jobsave):
 
 def sim_submit(jobsave):
     for entry in jobsave.jobs:
-        slurmname = entry.file["slurm"]
+        slurmname = entry.files["slurm"]
         if os.path.exists(slurmname) and slurmname.endswith('.slurm'):
             job = os.path.basename(slurmname)
             num = job_utils.submit_job(slurmname, job)
