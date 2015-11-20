@@ -5,14 +5,19 @@ Created on Jun 19, 2015
 @author: Tyler P
 '''
 import sys, os
-import tempfile
 import traceback
-from optparse import OptionParser
+from argparse import ArgumentParser
+from argparse import RawTextHelpFormatter
 import math
+import random
 import backup
 from param_versions.version_2_0 import Parameters
 from param_versions.version_2_0 import Keys
+import mdp_template
+import slurm_template
+from abc import abstractmethod, ABCMeta
 import job_utils
+import job_daemon
 
 verbose = 0
 POST_COMMANDS = []  #
@@ -36,8 +41,8 @@ class MyKeys(Keys):
         self._params = '_params'  # private
         self._params_out = '_params-out'  # private
         self._calling_dir = '_calling-dir'  # private
-        self.work_dir = 'sim-dir'
-        self.script_dir = 'scripts-dir'
+        self.work_dir = 'work-dir'
+        self.script_dir = 'sim-dir'
         self.input_dir = 'input-file-dir'
         self.ligand = 'ligand-res-name'
 
@@ -45,12 +50,12 @@ class MyKeys(Keys):
         self.add_key(self.base_name, section, "Input file prefix")
         self.add_key(self.job_name, section, "Name to prefix all files")
         self.add_key(self.work_dir, section, "Directory to operate within," +
-            " and create save files. Should generally be the same as " +
-            self.script_dir)
-        self.add_key(self.script_dir, section, "Directory to create scripts" +
-            " and script folders within")
-        self.add_key(self.input_dir, section, "Location of input files (.top," +
-            " .ndx, -in.gro)")
+            " and create save files. Relative to current directory.")
+        self.add_key(self.script_dir, section, "Directory to create script" +
+            " folders within, where the jobs will run (relative to " +
+            self.work_dir + ")")
+        self.add_key(self.input_dir, section, "Location of input files" +
+            " (.top, .ndx, -in.gro), relative to " + self.work_dir)
         self.add_keys(section, self.ligand)
         ################################################
         # Sim Options
@@ -111,10 +116,14 @@ class MyKeys(Keys):
         self.mdr_queue_time = 'mdr-queue-time'
         self.mdr_genseed = 'mdr-generate-seeds'
         self.mdr_seedrand = 'mdr-seed-for-random'
+        self.mdr_randsrc = 'mdr-randomized-xtc-for-initial-frames'
         self._expected_frames = "mdr-expected-number-of-frames"
 
         section = "mdrun Array"
         self.add_key(self.mdr_threads, section, 'Max 20 threads (for now)')
+        self.add_key(self.mdr_randsrc, section, "Path to xtc to use for" +
+            " initial configurations. There must also be a .tpr by the same" +
+            " name (relative to here, to parfile, or to workdir, in order)")
         self.add_keys(section, self.mdr_count, self.mdr_queue_time,
             self.mdr_genseed, self.mdr_seedrand)
         ################################################
@@ -133,9 +142,8 @@ class MyKeys(Keys):
         self.subcommand = 'subcommand'
         self.run_mdp = 'create-mdp'
         self.run_array = 'setup-array-of-jobs'
-        self._submit = 'submit-jobs'  # private
-        self._dryrun = 'dry-run'  # private
-        self._chain_all = 'GEN_ALL'  # private
+        self._submit = '_submit-jobs'  # private
+        self._dryrun = '_dry-run'  # private
 
         section = "Process Control"
         self.add_key(self.subcommand, section=section, updater=_subcomment)
@@ -143,6 +151,7 @@ class MyKeys(Keys):
 
 KEYS = MyKeys()
 param = Parameters(KEYS)
+ATTR = job_daemon.Attr()
 
 def option_defaults():
     """Define the default parameters for param file.
@@ -166,6 +175,7 @@ def option_defaults():
     options[KEYS.job_name] = None
     options[KEYS.work_dir] = '.'
     options[KEYS.script_dir] = '.'
+    options[KEYS.input_dir] = '.'
     options[KEYS.ligand] = 'TMP'
     ################################################
     # Process Control
@@ -212,8 +222,9 @@ def option_defaults():
     options[KEYS.mdr_count] = 1
     options[KEYS.mdr_threads] = 10
     options[KEYS.mdr_queue_time] = '1-00:00:00'
-    options[KEYS.mdr_genseed] = False
+    options[KEYS.mdr_genseed] = True
     options[KEYS.mdr_seedrand] = None
+    options[KEYS.mdr_randsrc] = None
     ################################################
     # Automation
     options[KEYS.auto_time_equil] = 0.2  # ns
@@ -225,54 +236,211 @@ def option_defaults():
 
 # provide custom default library
 param.option_defaults = option_defaults
-
-saver = job_utils.SaveJobs()
-
 #################################################################################
 #################################################################################
 
 class FilesystemImpactRegister:
 
-    def __init__(self):
-        self.cwd = '.'
-        self.files_created = []
-        self.filename_bases = []
-        self.files_removed = []
+    class Entry():
+        __metaclass__ = ABCMeta
+
+        def __init__(self, filename):
+            if filename != None:
+                fname = str(filename)
+            else:
+                raise Exception("Filename cannot be 'None'")
+            self.filename = fname
+
+        @abstractmethod
+        def make(self, filename):
+            """ Implement custom code to write using filename
+            """
+            pass
+
+    class StreamEntry(Entry):
+        __metaclass__ = ABCMeta
+
+        def __init__(self, filename):
+            FilesystemImpactRegister.Entry.__init__(self, filename)
+
+        def make(self, filename):
+            output = open(filename, "w")
+            self.write(output)
+            output.close()
+
+        @abstractmethod
+        def write(self, stream):
+            """ Implement custom code to write to stream
+            """
+            pass
+
+    def __init__(self, directory=None):
+        self.dirs_to_create = []
+        self.dirs_to_remove = []
+        self.files_to_create = []
+        self.files_to_remove = []
+        self.directory = directory
+
+    def add_create(self, entry_to_create):
+        good = False
+        try:
+            if entry_to_create.make and entry_to_create.filename:
+                good = True
+        except:
+            print("Please use the Entry inner class with this method")
+
+        if good:
+            self.files_to_create.append(entry_to_create)
+
+    def add_remove(self, filename_to_remove):
+        val = self._add_check(filename_to_remove)
+        if val != None:
+            self.files_to_remove.append(val)
+
+    def add_mkdir(self, path_to_make):
+        val = self._add_check(path_to_make)
+        if val != None:
+            self.dirs_to_create.append(val)
+
+    def add_rmdir(self, path_to_del):
+        val = self._add_check(path_to_del)
+        if val != None:
+            self.dirs_to_remove.append(val)
+
+    def _add_check(self, name):
+        if name != None:
+            return str(name)
+        else:
+            print("Path cannot be 'None'")
+            return None
 
     def merge(self, other_FIR):
         fir = FilesystemImpactRegister()
-        fir.files_created.extend(self.files_created)
-        fir.files_created.extend(other_FIR.files_created)
-        fir.filename_bases.extend(self.filename_bases)
-        fir.filename_bases.extend(other_FIR.filename_bases)
-        fir.files_removed.extend(self.files_removed)
-        fir.files_removed.extend(other_FIR.files_removed)
+        fir.directory = self.directory
+        fir.files_to_create.extend(self.files_to_create)
+        fir.files_to_create.extend(other_FIR.files_to_create)
+        fir.files_to_remove.extend(self.files_to_remove)
+        fir.files_to_remove.extend(other_FIR.files_to_remove)
         return fir
 
-class SlurmGen:
+    def describe(self, prefix="", print_method=None):
+        if print_method == None:
+            def alias(*args):
+                for arg in args:
+                    print arg,
+                print
+            print_method = alias
+
+        dir_ = self.directory
+        if dir_ is None:
+            dir_ = "cwd"
+        print_method(prefix + "From " + dir_ + ", there are instructions to" +
+                     " ...")
+
+        for path in self.dirs_to_remove:
+            print_method(prefix + "remove directory " + path)
+
+        for path in self.dirs_to_create:
+            print_method(prefix + "create directory " + path)
+
+        for entry in self.files_to_create:
+            print_method(prefix + "create file " + entry.filename)
+
+        for fname in self.files_to_remove:
+            print_method(prefix + "remove file " + fname)
+
+    def execute(self, verbose=True, quiet=False):
+        """ Perform all the file creation and removal assigned to this register
+        """
+        v = False
+        q = False
+        if verbose:  # whatever the current rule for boolean evaluation is
+            v = True
+        if quiet:
+            q = True
+
+        here = os.getcwd()
+        dir_ = self.directory
+        if dir_ is None:
+            dir_ = here
+        if not os.path.isdir(dir_):
+            if v:
+                print("Creating directory " + dir_)
+            os.mkdir(dir_)
+        if v:
+            print("Changing to directory " + dir_)
+        os.chdir(dir_)
+
+        for path in self.dirs_to_remove:
+            if os.path.exists(path) and os.path.isdir(path):
+                files = os.listdir(path)
+                if v:
+                    print("Removing directory and all its contents: " + path)
+                for fname in files:
+                    print("\t" + fname)
+                os.system("rm -r " + path)
+            elif os.path.exists(path):
+                if not q:
+                    print("Warning: is not a directory " + path)
+            elif not q:
+                print("Warning: directory does not exist " + path)
+
+        for path in self.dirs_to_create:
+            if os.path.exists(path) and os.path.isdir(path):
+                if not q:
+                    print("Warning: directory already exists " + path)
+                continue
+            if v:
+                print("Creating directory " + path)
+            os.mkdir(path)
+
+        to_remove = list(self.files_to_remove)
+        for entry in self.files_to_create:
+            if entry.filename in to_remove:
+                to_remove.remove(entry.filename)
+            elif os.path.exists(entry.filename) and not q:
+                print("Warning: overwriting file " + entry.filename)
+            if v:
+                print("Creating file " + entry.filename)
+            entry.make(entry.filename)
+
+        for fname in to_remove:
+            if os.path.exists(fname):
+                if v:
+                    print("Removing file " + fname)
+                os.remove(fname)
+            elif not q:
+                print("Cannot remove " + fname + ", file does not exist.")
+
+        if v:
+            print("Returning to directory " + here)
+        os.chdir(here)
+
+class SlurmGen(slurm_template.Slurm):
 
     def __init__(self):
-        self.script = ""
-        self.header = ""
-        self.setup = ""
-        self.checkin = ""
-        self.main = ""
-        self.cleanup = ""
-        self.checkout = ""
-        self.fields_general = dict()
-        self.fields_header = dict()
-        self.fields_checkin = dict()
-        self.fields_setup = dict()
-        self.fields_main = dict()
-        self.fields_cleanup = dict()
-        self.fields_checkout = dict()
+        slurm_template.Slurm.__init__(self)
         self.double_precision = False
         self.use_mpi = False
         self.gromacs5 = False
         self.calc_wt = True
+        self.extra = None
+
+        self.opt_jobname = ""
+        self.opt_ntasks = 1
+        self.opt_workdir = None
+        self.opt_queuetime = "2-00:00:00"
+        self.opt_timens = 1
+
+        self.file_out = ""
+        self.file_mdp = ""
+        self.file_gro = ""
+        self.file_top = ""
+        self.file_ndx = ""
+        self.file_tpr = ""
 
     def walltime(self, ns, ntasks, nnodes):
-        rate = 7.5 / 20  # 7.5 ns/day per 20 cores for double precicion
+        rate = 4.1 / 20  # 4.1 ns/day per 20 cores for double precicion
         if not self.double_precision:
             rate *= 1.7  # assume 70% speedup for single precision
         speed = rate * ntasks  # ns/day
@@ -297,136 +465,83 @@ class SlurmGen:
         return '{0}-{1:02}:{2:02}:{3:02}'.format(days, hours, mins, secs)
 
     def compile(self):
-        self.script = ""
-        self.script += self.get_header()
-        self.script += "\n"
-        self.script += self.get_setup()
-        self.script += "\n"
-        self.script += self.get_checkin()
-        self.script += "\n"
-        self.script += self.get_main()
-        self.script += "\n"
-        self.script += self.get_cleanup()
-        self.script += "\n"
-        self.script += self.get_checkout()
-        return self.script
+        self.set_header()
+        self.set_setup()
+        self.set_commands()
+        return slurm_template.Slurm.compile(self)
 
-    def get_header(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_header)
-        fields["nnodes"] = 1
-        fields["partition"] = "serial"
+    def set_header(self):
+        nnodes = 1
+        partition = "serial"
+        queuetime = self.opt_queuetime
+
         if self.use_mpi:
             # 20 cores physically exist on a Rivanna node
-            fields["nnodes"] = int(math.ceil(fields["ntasks"] / 20.0))
-        if fields["nnodes"] == 0:
-            fields["nnodes"] = 1
-        elif fields["nnodes"] > 1:
-            fields["partition"] = "parallel"
+            nnodes = int(math.ceil(self.opt_ntasks / 20.0))
+        if nnodes == 0:
+            nnodes = 1
+        elif nnodes > 1:
+            partition = "parallel"
         if self.calc_wt:
-            fields["queue-time"] = self.walltime(fields["time-ns"],
-                fields["ntasks"], fields["nnodes"])
-        self.header = """#!/bin/sh
-#SBATCH --job-name={job-name}{suffix}
-#SBATCH --partition={partition}
-#SBATCH --nodes={nnodes}
-#SBATCH --ntasks={ntasks}
-#SBATCH --time={queue-time}
-#SBATCH --signal=15 --comment="15 = SIGTERM"
-#SBATCH --output={outputfile}.out
-#SBATCH --workdir={workdir}
-#SBATCH --checkpoint=06:00:00
-#SBATCH --checkpoint-dir=/scratch/jtp4kc/checkpoints
-#SBATCH --mail-type=REQUEUE
-#SBATCH --mail-type=END
-#SBATCH --mail-type=FAIL
-#SBATCH --mail-user=jtp4kc@virginia.edu
-#SBATCH --comment="#SBATCH --array-0,1,3"
-""".format(**fields)
-        return self.header
+            queuetime = self.walltime(self.opt_timens, self.opt_ntasks, nnodes)
 
-    def get_setup(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_setup)
-        self.setup = """MODULEPATH=/h3/n1/shirtsgroup/modules:$MODULEPATH
-MODULEPATH=$HOME/modules:$MODULEPATH
-module load jtp4kc
-module load anaconda-jtp
-module load openmpi/1.8.1
-"""
+        self.job_name = self.opt_jobname
+        self.partition = partition
+        self.nodes = nnodes
+        self.ntasks = self.opt_ntasks
+        self.time = queuetime
+        self.signal = 15  # 15 = SIGTERM
+        self.output = self.file_out
+        self.workdir = self.opt_workdir
+        self.mail_types.append("REQUEUE")
+        self.mail_types.append("END")
+        self.mail_types.append("FAIL")
+        self.mail_user = "jtp4kc@virginia.edu"
+
+    def set_setup(self):
+        self.status_filename = os.path.join('..', 'jobstatus.txt')
+
+        self.modulepath_prepends.append("/h3/n1/shirtsgroup/modules")
+        self.modulepath_prepends.append("$HOME/modules")
+        self.modules.append("jtp4kc")
+        self.modules.append("anaconda-jtp")
         if self.gromacs5:
-            self.setup += "module load gromacs/5.0.2-sse"
+            self.modules.append("gromacs/5.0.2-sse")
         else:
-            self.setup += "module load gromacs-shirtsgroup/4.6.7"
+            self.modules.append("gromacs-shirtsgroup/4.6.7")
 
-        self.setup += """
+        self.exports.append('THREADINFO="-nt ' + str(self.opt_ntasks) + ' "')
+        self.exports.append('GMX_SUPPRESS_DUMP=1 #prevent step file output')
 
-export THREADINFO="-nt {ntasks} "
-export GMX_SUPPRESS_DUMP=1 #prevent step file output
-
-sleep 1
-diagnostics
-"""
-        self.setup = self.setup.format(**fields)
-        return self.setup
-
-    def get_checkin(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_checkin)
-        self.checkin = """#Change the job status to 'SUBMITTED'
-echo "SUBMITTED {job-name}{suffix} `date`" >> {jobstatus}
-echo "Job Started at `date`"
-""".format(**fields)
-        return self.checkin
-
-    def get_main(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_main)
-        fields['dm'] = ""
+    def set_commands(self):
+        dm = ""
         if self.double_precision:
-            fields['dm'] = "_d"
-        self.main = """#PRODUCTION
-grompp{dm} -c {infolder}{gro-in}-in.gro -p {infolder}{base}.top -n {infolder}{base}.ndx -f {mdp-in}.mdp -o {job-name}.tpr -maxwarn 15
-if [ -f {job-name}.tpr ];
-then
-    echo "MD Simulation launching..."
-    mdrun{dm} ${{THREADINFO}} -deffnm {job-name}
-else
-    echo "Error generating {job-name}.tpr"
-fi
-""".format(**fields)
-        return self.main
+            dm = "_d"
 
-    def get_cleanup(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_cleanup)
-        self.cleanup = ""
-        if self.fields_cleanup["move-cmds"]:
-            self.cleanup += "{move-cmds}\n"
-        if self.fields_cleanup["extra-instructions"]:
-            self.cleanup += "{extra-instructions}\n"
-        self.cleanup = self.cleanup.format(**fields)
-        return self.cleanup
+        grompp = ["grompp" + dm,
+                  "-c", self.file_gro,
+                  "-p", self.file_top,
+                  "-n", self.file_ndx,
+                  "-f", self.file_mdp,
+                  "-o", self.file_tpr,
+                  "-maxwarn", "15"]
 
-    def get_checkout(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_checkout)
-        self.checkout = """
-echo "FINISHED {job-name}{suffix} `date`" >> {jobstatus}
-# print end time
-echo
-echo "Job Ended at `date`"
-echo "###################################################################"
-""".format(**fields)
-        return self.checkout
+        self.commands.append("rm " + self.file_tpr + " # in case files changed")
+        self.commands.append(" ".join(grompp))
+        self.commands.append("if [ -f " + self.file_tpr + " ];")
+        self.commands.append("then")
+        self.commands.append('    echo "MD Simulation launching..."')
+        self.commands.append("    mdrun" + dm + " ${THREADINFO} -deffnm " +
+                             self.opt_jobname)
+        self.commands.append("else")
+        self.commands.append('    echo "Error creating ' + self.file_tpr + '"')
+        self.commands.append("fi")
 
-class MDPGen:
+        if self.extra:
+            self.commands.append("")
+            self.commands.append(self.extra)
+
+class MDPGen(mdp_template.MDP):
 
     class PkgPrecision:
         def __init__(self):
@@ -435,24 +550,7 @@ class MDPGen:
             self.shake_tol = 5e-6
 
     def __init__(self):
-        self.script = ""
-        self.params = ""
-        self.neighbors = ""
-        self.output = ""
-        self.interactions = ""
-        self.bonds = ""
-        self.velocities = ""
-        self.coupling = ""
-        self.expdens = ""
-        self.fields_general = dict()
-        self.fields_params = dict()
-        self.fields_neighbors = dict()
-        self.fields_output = dict()
-        self.fields_interactions = dict()
-        self.fields_bonds = dict()
-        self.fields_velocities = dict()
-        self.fields_coupling = dict()
-        self.fields_expdens = dict()
+        mdp_template.MDP.__init__(self)
         self.ensemble = "NVT"
         self.volume_control = False
         self.fixed_state = False
@@ -470,24 +568,28 @@ class MDPGen:
         self.precision = self.pkg_double
         self.gromacs5 = False
 
-    def compile(self):
-        self.script = ""
-        self.script += self.get_params()
-        self.script += "\n"
-        self.script += self.get_neighbors()
-        self.script += "\n"
-        self.script += self.get_output()
-        self.script += "\n"
-        self.script += self.get_interactions()
-        self.script += "\n"
-        self.script += self.get_bonds()
-        self.script += "\n"
-        self.script += self.get_velocities()
-        self.script += "\n"
-        self.script += self.get_coupling()
-        self.script += "\n"
-        self.script += self.get_expdens()
-        return self.script
+        self.opt_nstout = 0
+        self.opt_temp = 0
+        self.opt_dt = 0
+        self.opt_timens = 0
+        self.opt_genseed = 0
+        self.opt_tempalg = ""
+        self.opt_ligand = ""
+        self.opt_feplambdas = ""
+        self.opt_coullambdas = ""
+        self.opt_vdwlambdas = ""
+        self.opt_initlambda = 0
+        self.opt_initlambdaindex = 0
+        self.opt_nstmc = ""
+        self.opt_weightsequil = ""
+        self.opt_lmcseed = 0
+        self.opt_gibbsdelta = ""
+        self.opt_wlweights = ""
+        self.opt_wlincr = 0
+        self.opt_wlscale = 0
+        self.opt_wlratio = 0
+        self.cmt_weights1 = None
+        self.cmt_weights2 = None
 
     def set_ensemble(self, code="NVT"):
         self.ensemble = code
@@ -502,243 +604,148 @@ class MDPGen:
         else:
             self.precision = self.pkg_single
 
-    def get_params(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_params)
-        fields['nstrun'] = fields['time-ns'] * (1000 / fields['dt'])
-        self.params = """; RUN CONTROL PARAMETERS = 
-integrator               = md-vv
-; start time and timestep in ps = 
-tinit                    = 0
-dt                       = {dt:0.3f}
-nsteps                   = {nstrun:<12.0f}; {time-ns:0.2f} ns
-; mode for center of mass motion removal = 
-comm-mode                = Linear
-; number of steps for center of mass motion removal = 
-nstcomm                  = 1
-; group(s) for center of mass motion removal = 
-;comm-grps                = 
-nsttcouple               = 1
-nstpcouple               = 1
-; preprocessing
-include                  = -I/nv/blue/jtp4kc/gromacs/itp/
-""".format(**fields)
-        return self.params
+    def compile(self):
+        self.set_params()
+        self.set_neighbors()
+        self.set_output()
+        self.set_interactions()
+        self.set_bonds()
+        self.set_velocities()
+        self.set_coupling()
+        self.set_free_energy()
+        self.set_expanded_ensemble()
+        self.set_monte_carlo()
+        return mdp_template.MDP.compile(self)
 
-    def get_neighbors(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_neighbors)
-        self.neighbors = """; NEIGHBORSEARCHING PARAMETERS = 
-; nblist update frequency = 
-nstlist                  = 10
-; ns algorithm (simple or grid) = 
-ns_type                  = grid
-; Periodic boundary conditions: xyz or no = 
-pbc                      = xyz
-; nblist cut-off         = 
-rlist                    = 1.2
-""".format(**fields)
-        return self.neighbors
+    def set_params(self):
+        nstrun = self.opt_timens * (1000 / self.opt_dt)
+        self.integrator = "md-vv"
+        self.tinit = "0"
+        self.dt = "{0:0.3f}".format(self.opt_dt)
+        self.nsteps = "{0:<12.0f}; {1:0.2f} ns".format(nstrun, self.opt_timens)
+        self.comm_mode = "Linear"
+        self.nstcomm = "1"
+        self.nsttcouple = "1"
+        self.nstpcouple = "1"
+        self.include = "-I/nv/blue/jtp4kc/gromacs/itp"
 
-    def get_output(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_output)
-        self.output = """; OUTPUT CONTROL OPTIONS
-; Output frequency for coords (x), velocities (v) and forces (f)
-nstxout                  = 0
-nstvout                  = 0
-nstfout                  = 0
-; Output frequency for energies to log file and energy file
-nstlog                   = {nstout:0.0f}  ; changing this allows you to see the frequency the weights are computed.
-nstcalcenergy            = 1
-nstenergy                = {nstout:0.0f}
-; Output frequency and precision for .xtc file"""
+    def set_neighbors(self):
+        self.nstlist = "10"
+        self.ns_type = "grid"
+        self.pbc = "xyz"
+        self.rlist = "1.2"
+
+    def set_output(self):
+        self.nstxout = "0"
+        self.nstvout = "0"
+        self.nstfout = "0"
+        self.nstlog = "{0:0.0f}".format(self.opt_nstout)
+        self.nstcalcenergy = "1"
+        self.nstenergy = self.nstlog
         if self.gromacs5:
-            self.output += """
-nstxout-compressed       = {nstout:0.0f}  ; trajectory output frequency
-compressed-x-precision   = 1000
-"""
+            self.nstxout_compressed = self.nstlog
+            self.compressed_x_precision = "1000"
         else:
-            self.output += """
-nstxtcout                = {nstout:0.0f}  ; trajectory output frequency
-xtc-precision            = 1000
-"""
-            self.output = self.output.format(**fields)
-        return self.output
+            self.nstxtcout = self.nstlog
+            self.xtc_precision = "1000"
 
-    def get_interactions(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_interactions)
-        self.interactions = """; OPTIONS FOR ELECTROSTATICS AND VDW = 
-; Method for doing electrostatics = 
-cutoff-scheme            = group
-coulombtype              = PME
-coulomb-modifier         = Potential-Switch
-rcoulomb-switch          = 0.88
-rcoulomb                 = 0.9
+    def set_interactions(self):
+        self.cutoff_scheme = "group"
+        self.coulombtype = "PME"
+        self.coulomb_modifier = "Potential-Switch"
+        self.rcoulomb_switch = "0.88"
+        self.rcoulomb = "0.9"
+        self.vdw_type = "Cut-off"
+        self.vdw_modifier = "Potential-Switch"
+        self.rvdw_switch = "0.85"
+        self.rvdw = "0.9"
+        self.DispCorr = "AllEnerPres"
+        self.fourierspacing = "0.12"
+        self.fourier_nx = "0"
+        self.fourier_ny = "0"
+        self.fourier_nz = "0"
+        self.pme_order = "4"
+        self.ewald_rtol = "1e-05"
+        self.ewald_geometry = "3d"
 
-; Method for doing Van der Waals = 
-vdw-type                 = Cut-off
-vdw-modifier             = Potential-switch
-; cut-off lengths        = 
-rvdw-switch              = 0.85
-rvdw                     = 0.9
-; Apply long range dispersion corrections for Energy and Pressure = 
-DispCorr                 = AllEnerPres
-; Spacing for the PME/PPPM FFT grid = 
-fourierspacing           = 0.12
-; FFT grid size, when a value is 0 fourierspacing will be used = 
-fourier_nx               = 0
-fourier_ny               = 0
-fourier_nz               = 0
-; EWALD/PME/PPPM parameters = 
-pme_order                = 4
-ewald_rtol               = 1e-05
-ewald_geometry           = 3d
-""".format(**fields)
-        return self.interactions
+    def set_bonds(self):
+        self.constraints = "hbonds ; constrain bonds to hydrogen"
+        self.constraint_algorithm = "shake"
+        self.shake_tol = str(self.precision.shake_tol)
 
-    def get_bonds(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_bonds)
-        fields.update(self.precision.__dict__)
-        self.bonds = """; OPTIONS FOR BONDS     = 
-constraints              = hbonds ; constrain bonds to hydrogen
-; Type of constraint algorithm = 
-constraint-algorithm     = shake
-; Highest order in the expansion of the constraint coupling matrix = 
-shake-tol                = {shake_tol} ; ~TP
-""".format(**fields)
-        return self.bonds
+    def set_velocities(self):
+        self.comment_velocities1 = "GENERATE VELOCITIES FOR STARTUP RUN = "
+        self.gen_vel = "yes"
+        self.gen_temp = "{0:0.1f} ; K".format(self.opt_temp)
+        self.gen_seed = str(self.opt_genseed)
 
-    def get_velocities(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_velocities)
-        self.velocities = """; GENERATE VELOCITIES FOR STARTUP RUN = 
-gen_vel                  = yes
-gen_temp                 = {temp:0.1f} ; K
-gen_seed                 = {gen-seed}
-""".format(**fields)
-        return self.velocities
-
-    def get_coupling(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_coupling)
-        fields.update(self.precision.__dict__)
-        self.coupling = """; OPTIONS FOR WEAK COUPLING ALGORITHMS = 
-; Groups to couple separately = 
-tc-grps                  = System
-; Time constant (ps) and reference temperature (K) = 
-tcoupl                   = {temp-alg}
-tau_t                    = {tau_t} ; ~TP
-ref_t                    = {temp:0.1f}
-"""
+    def set_coupling(self):
+        self.comment_coupling1 = "OPTIONS FOR WEAK COUPLING ALGORITMS"
+        self.tc_grps = "System"
+        self.tcoupl = self.opt_tempalg
+        self.tau_t = str(self.precision.tau_t)
+        self.ref_t = str(self.opt_temp)
         if self.volume_control:
-            self.coupling += """
-; Volume control         = 
-Pcoupl                   = no
-"""
+            self.comment_coupling3 = "Volume control"
+            self.pcoupl = "no"
         else:
-            self.coupling += """
-; Pressure coupling      = 
-Pcoupl                   = MTTK
-Pcoupltype               = isotropic
-; Time constant (ps), compressibility (1/bar) and reference P (bar) = 
-tau_p                    = {tau_p} ; ps ~TP
-compressibility          = 4.5e-5 ; 1/bar
-ref_p                    = 1.0 ; bar
-"""
-        self.coupling = self.coupling.format(**fields)
-        return self.coupling
+            self.comment_coupling3 = "Pressure coupling"
+            self.pcoupl = "MTTK"
+            self.pcoupltype = "isotropic"
+            self.tau_p = str(self.precision.tau_p) + "; ps"
+            self.compressibility = "4.5e-5 ; 1/bar"
+            self.ref_p = "1.0 ; bar"
 
-    def get_expdens(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        self.expdens = "; OPTIONS FOR EXPANDED ENSEMBLE SIMULATIONS"
-        self.expdens += self.get_free_energy()
-        self.expdens += "\n"
-        self.expdens += self.get_expanded_ensemble()
-        self.expdens += "\n"
-        self.expdens += self.get_monte_carlo()
-        return self.expdens
-
-    def get_free_energy(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        fields['energy-out'] = "yes"
+    def set_free_energy(self):
+        self.sc_alpha = "0.5"
+        self.couple_moltype = self.opt_ligand
+        self.couple_lambda0 = "vdw-q"
+        self.couple_lambda1 = "none"
+        self.couple_intramol = "no"
+        self.fep_lambdas = self.opt_feplambdas
+        self.coul_lambdas = self.opt_coullambdas
+        self.vdw_lambdas = self.opt_vdwlambdas
+        self.symmetrized_transition_matrix = "yes"
+        self.nst_transition_matrix = "100000"
+        self.nstdhdl = str(self.opt_nstout)
         if self.gromacs5:
-            fields['energy-out'] = "total"
-        part = """; Free energy control stuff  
-sc-alpha                  = 0.5
-couple-moltype            = {ligand}
-couple-lambda0            = vdw-q
-couple-lambda1            = none
-couple-intramol           = no
-fep-lambdas               = {fep-lambdas}
-coul-lambdas              = {coul-lambdas}
-vdw-lambdas               = {vdw-lambdas}
-symmetrized-transition-matrix = yes
-nst-transition-matrix     = 100000
-nstdhdl                   = {nstout:0.0f}
-dhdl-print-energy         = {energy-out}
-"""
+            self.dhdl_print_energy = "total"
+        else:
+            self.dhdl_print_energy = "yes"
         if self.fixed_state:
-            part += "free-energy               = yes\n"
-            part += "init-lambda               = {init-lambda}\n"
+            self.free_energy = "yes"
+            self.init_lambda = str(self.opt_initlambda)
         else:
-            part += "free-energy               = expanded\n"
-            part += "init-lambda-state         = {init-state-index}\n"
-        part = part.format(**fields)
-        return part
+            self.free_energy = "expanded"
+            self.init_lambda_state = str(self.opt_initlambdaindex)
 
-    def get_expanded_ensemble(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        part = """; expanded ensemble
-nstexpanded              = {nst-mc:0.0f}
-lmc-stats                = wang-landau
-lmc-weights-equil        = {weights-equil}
-lmc-seed                 = {lmc-seed}
-"""
+    def set_expanded_ensemble(self):
+        self.nstexpanded = "{0:0.0f}".format(self.opt_nstmc)
+        self.lmc_stats = "wang-landau"
+        self.lmc_weights_equil = str(self.opt_weightsequil)
+        self.lmc_seed = str(self.opt_lmcseed)
         if self.use_gibbs and self.use_metro:
-            part += "lmc-move                 = metropolized-gibbs\n"
-            part += "lmc-gibbsdelta           = {gibbs-delta}\n"
+            self.lmc_move = "metropolized-gibbs"
+            self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_gibbs:
-            part += "lmc-move                 = gibbs\n"
-            part += "lmc-gibbsdelta           = {gibbs-delta}\n"
+            self.lmc_move = "gibbs"
+            self.lmc_gibbsdelta = str(self.opt_gibbsdelta)
         elif self.use_metro:
-            part += "lmc-move                 = metropolis\n"
+            self.lmc_move = "metropolis"
         else:
-            part += "lmc-move                 = no\n"
-
+            self.lmc_move = "no"
         if self.initial_weights:
-            part += "init-lambda-weights      = {wl-weights}\n"
+            self.init_lambda_weights = str(self.opt_wlweights)
+            self.comment_weights1 = self.cmt_weights1
+            self.comment_weights2 = self.cmt_weights2
         else:
-            part += "weight-equil-wl-delta    = 0.001\n"
-        part = part.format(**fields)
-        return part
+            self.weight_equil_wl_delta = "0.001"
 
-    def get_monte_carlo(self):
-        fields = dict()
-        fields.update(self.fields_general)
-        fields.update(self.fields_expdens)
-        part = """; Seed for Monte Carlo in lambda space
-wl-scale                 = {wl-scale:0.3f}
-wl-ratio                 = {wl-ratio:0.3f}
-init-wl-delta            = {wl-incr:0.3f}
-wl-oneovert              = yes
-""".format(**fields)
-        return part
+    def set_monte_carlo(self):
+        self.wl_scale = "{0:0.3f}".format(self.opt_wlscale)
+        self.wl_ratio = "{0:0.3f}".format(self.opt_wlratio)
+        self.init_wl_delta = "{0:0.3f}".format(self.opt_wlincr)
+        self.wl_oneovert = "yes"
 
 class BEPGen:
 
@@ -802,25 +809,39 @@ class BEPGen:
     def write(self, file_name):
         BEPGen.params.write_options(file_name, self.fields_output)
 
-def submit_slurm(slurm_path, jobname, doprint=True):
-    import subprocess
-    file_ = tempfile.NamedTemporaryFile(mode="w+t", prefix='sbo', dir='.')
-    subprocess.call(["sbatch", slurm_path], stdout=file_)
-    file_.seek(0)  # reset to be able to read
-    line = file_.readline().replace("\n", "")
-    file_.close()  # file should be deleted shortly hereafter
-    num = line.split(" ")[-1]
-    if doprint:
-        print(line)
-        print("Sbatch'd Job " + jobname + " as jobname #" + num)
-    return num
+class WriterEntry(FilesystemImpactRegister.Entry):
 
-def generate(opts):
-    fir = FilesystemImpactRegister()
-    fir.cwd = os.getcwd()
+    def __init__(self, filename, writer_item):
+        FilesystemImpactRegister.Entry.__init__(self, filename)
+        self.item = writer_item
 
-    randseed = opts[KEYS.mdr_genseed]
-    submit = opts[KEYS._submit]
+    def make(self, filename):
+        self.item.write(filename)
+
+class CompiledEntry(FilesystemImpactRegister.StreamEntry):
+
+    def __init__(self, filename, compiled_item):
+        FilesystemImpactRegister.Entry.__init__(self, filename)
+        self.item = compiled_item
+
+    def write(self, stream):
+        text = self.item.compile()
+        stream.write(text)
+
+def handle_job(opts):
+    job = opts[KEYS.job_name]
+    wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
+    savename = os.path.join(wrkdir, job + ".save")
+    jobsave = job_utils.SaveJobs()
+    jobsave.attr["name"] = job
+
+    make_job(opts, jobsave)
+    if not opts[KEYS._dryrun]:
+        jobsave.save(savename)
+    if opts[KEYS._submit]:
+        job_daemon.reschedule_self(job, savename, time="7-00:00:00", live=True)
+
+def make_job(opts, jobsave=None):
     job_name = opts[KEYS.job_name]
     if not job_name:
         print('Job name not specified')
@@ -829,236 +850,269 @@ def generate(opts):
     if not base_name:
         base_name = job_name
 
-    dir_ = os.path.join(backup.expandpath(opts[KEYS.work_dir]), "")
-    if not os.path.exists(dir_):
-        os.mkdir(dir_)
-    os.chdir(dir_)
-    path = os.path.join(backup.expandpath(opts[KEYS.script_dir]), "")
+    wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
+    fir = FilesystemImpactRegister(directory=wrkdir)
+    path = os.path.join(backup.expandrelpath(opts[KEYS.script_dir]), "")
+    indir = os.path.join(backup.expandrelpath(opts[KEYS.input_dir]), "")
+
+    if not os.path.isdir(path):
+        fir.add_mkdir(path)
+    bep_dir = path  # in case it decides to move
 
     tpr_files = []
     xtc_files = []
     gro_files = []
-    edr_files = []
     xvg_files = []
+    to_submit = []
 
-    for i in range(opts[KEYS.mdr_count]):
+    if opts[KEYS.mdr_seedrand] != None:
+        random.seed(opts[KEYS.mdr_seedrand])
+
+    n_sim = opts[KEYS.mdr_count]
+
+    gro_gen = None
+    frames = None
+    if opts[KEYS.mdr_randsrc] is not None:
+        randname = opts[KEYS.mdr_randsrc]
+        randxtc = backup.expandrelpath(randname)
+        if not os.path.exists(randxtc):
+            randxtc = backup.expandrelpath(randname,
+                                           os.path.dirname(opts[KEYS._params]))
+        if not os.path.exists(randxtc):
+            randxtc = backup.expandrelpath(randname, wrkdir)
+        if verbose > 0:
+            print("Trajectory to use to make random input frames: " + randxtc)
+        gro_gen = job_utils.ExtractFrames(randxtc)
+        try:
+            frames = gro_gen.get_gro_frames(n_sim, framenums=True)
+        except Exception as e:
+            print(e)
+
+    for i in range(n_sim):
         suffix = '-{0:0>2}'.format(i)
         if opts[KEYS.mdr_count] < 2:
             suffix = ''
 
-        folder = job_name + suffix
-        dir_name = os.path.join(path, folder)
-        if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
-        os.chdir(dir_name)
-        file_name = job_name + suffix + '.slurm'
-        workdir = os.path.join(path, job_name + suffix, "")
-        callingdir = opts[KEYS._calling_dir]
-        indir = os.path.join('..', '')
-        gro_in = base_name + suffix
-        mdp_in = job_name + suffix
-        move_par = True
-        move_gro = False
+        dir_name = job_name + suffix
+        jobdir = os.path.join(path, dir_name, "")
+        if not os.path.exists(os.path.join(wrkdir, jobdir)):
+            fir.add_mkdir(jobdir)
 
-        cont = False
-        if randseed:
-            gro_in = base_name
-            try:
-                import random
-                if opts[KEYS.seedrand] != None:
-                    random.seed(opts[KEYS.seedrand])
-                seed = random.randint(0, 65536)
-                num = seed + i
-                cont = make_mdp(opts, name=mdp_in, genseed=num, lmcseed=num)
-            except IOError as ioex:
-                print(ioex)
-                traceback.print_exc()
+        # filenames
+        slurmname = os.path.join(jobdir, job_name + suffix + '.slurm')
+        mdpname = os.path.join(jobdir, job_name + suffix + '.mdp')
+        tprname = os.path.join(jobdir, job_name + suffix + '.tpr')
+        xtcname = os.path.join(jobdir, job_name + suffix + '.xtc')
+        xvgname = os.path.join(jobdir, job_name + suffix + '.xvg')
+        logname = os.path.join(jobdir, job_name + suffix + '.log')
+        outname = os.path.join(jobdir, job_name + suffix + '.out')
+        ndxname = os.path.join(indir, base_name + '.ndx')
+        topname = os.path.join(indir, base_name + '.top')
+        groname = os.path.join(indir, base_name + '-in.gro')
+        if frames is not None:
+            groname = os.path.join(jobdir, job_name + suffix + '-in.gro')
+
+        if opts[KEYS.mdr_genseed]:
+            num = random.randint(0, 65536)
+            buildmdp = make_mdp(opts, genseed=num, lmcseed=num)
         else:
-            try:
-                cont = make_mdp(opts, name=job_name + suffix)
-            except IOError as ioex:
-                print(ioex)
-                traceback.print_exc()
+            buildmdp = make_mdp(opts)
 
-        if not cont:
+        if buildmdp is None:
             return
+        fir.add_create(CompiledEntry(mdpname, buildmdp))
 
-        extra = ""
-        subcom = opts[KEYS.subcommand]
-        if opts[KEYS._chain_all] and (subcom == 'equil' or
-            subcom == 'rand' or subcom == 'array'):
+        eqtime = opts[KEYS.sim_time] / 2
+        temp = opts[KEYS.sim_temperature]
+        extra = ("python ~/git/alchemical-analysis/alchemical_analysis/" +
+            "alchemical_analysis.py -p dhdl -r 8 -s " + str(eqtime) + " -t " +
+            str(temp) + " -u kBT -v -w -x &> alchem-" + job_name + ".out\n")
 
-            if subcom == 'equil':
-                next_cmd = 'rand'
-            elif subcom == 'rand':
-                next_cmd = 'array'
-            elif subcom == 'array':
-                move_gro = True
-            param_opt = ""
-            if opts[KEYS._params]:
-                param_opt = "--par " + opts[KEYS._params]
-
-            extra = "# genscript " + subcom + "\n"
-            if subcom == 'array':
-                extra += "cd " + workdir + "\n"
-            else:
-                extra += ("cd " + callingdir + "\n" +
-                    "python " + os.path.realpath(__file__) + " " + next_cmd +
-                    " " + KEYS._chain_all + " --submit " + param_opt + "\n" +
-                    "cd " + workdir + "\n")
-
-        move = ""
-        if move_par:
-            move += ("mv " + dir_ + opts[KEYS._params_out] + " " +
-                opts[KEYS._params_out] + " \n")
-        if move_gro:
-            move += "mv " + indir + gro_in + "-in.gro " + gro_in + "-in.gro\n"
-
+        loc = os.path.dirname(slurmname)
         builder = SlurmGen()
         builder.double_precision = opts[KEYS.sim_precision]
         builder.use_mpi = opts[KEYS.sim_use_mpi]
         builder.calc_wt = opts[KEYS.auto_calc_wt]
         builder.gromacs5 = opts[KEYS.sim_gromacs5]
-        builder.fields_general['job-name'] = job_name
-        builder.fields_general['suffix'] = suffix
-        builder.fields_general['ntasks'] = opts[KEYS.mdr_threads]
-        builder.fields_general['workdir'] = workdir
-        builder.fields_general['jobstatus'] = os.path.join('..',
-            'jobstatus.txt')
-        builder.fields_header['time-ns'] = opts[KEYS.sim_time]
-        builder.fields_header['queue-time'] = opts[KEYS.mdr_queue_time]
-        builder.fields_header['outputfile'] = os.path.join(path,
-            job_name + suffix, job_name)
-        builder.fields_main['base'] = base_name
-        builder.fields_main['gro-in'] = gro_in
-        builder.fields_main['mdp-in'] = mdp_in
-        builder.fields_main['infolder'] = indir
-        builder.fields_cleanup['move-cmds'] = move
-        builder.fields_cleanup['extra-instructions'] = extra
 
-        file_ = open(file_name, 'w')
-        file_.write(builder.compile())
-        file_.close()
+        slurmworkdir = backup.expandrelpath(jobdir, loc)
+        if slurmworkdir == ".":
+            slurmworkdir = None
+        builder.opt_jobname = job_name + suffix
+        builder.opt_ntasks = opts[KEYS.mdr_threads]
+        builder.opt_workdir = slurmworkdir
+        builder.opt_timens = opts[KEYS.sim_time]
+        builder.opt_queuetime = opts[KEYS.mdr_queue_time]
+        builder.file_out = job_name + suffix + ".out"
 
-        if submit:
-            tpr_files.append(os.path.join(folder, job_name + ".tpr"))
-            xtc_files.append(os.path.join(folder, job_name + ".xtc"))
-            if move_gro:
-                gro_files.append(os.path.join(folder, gro_in + "-in.gro"))
-            else:
-                gro_files.append(os.path.join(gro_in + "-in.gro"))
-            edr_files.append(os.path.join(folder, job_name + ".edr"))
-            xvg_files.append(os.path.join(folder, job_name + ".xvg"))
-            if not opts[KEYS._dryrun]:
-                num = submit_slurm(file_name, job_name + suffix)
-#                 global SAVE_LIBRARY
-#                 SAVE_LIBRARY[save_keys.jobs].append((job_name + suffix, num))
-            else:
-                print("DRYRUN: Would sbatch job " + job_name + suffix)
+        builder.file_mdp = backup.expandrelpath(mdpname, loc)
+        builder.file_gro = backup.expandrelpath(groname, loc)
+        builder.file_top = backup.expandrelpath(topname, loc)
+        builder.file_ndx = backup.expandrelpath(ndxname, loc)
+        builder.file_tpr = backup.expandrelpath(tprname, loc)
+        builder.extra = extra
 
-#         global SAVE_LIBRARY
-#         jname = job_name + suffix
-#         SAVE_LIBRARY[save_keys.files].append(dir_ + file_name)
-#         SAVE_LIBRARY[save_keys.files].append(dir_ + opts[KEYS._params_out])
-#         if submit:
-#             SAVE_LIBRARY[save_keys.folders].append((dir_ + folder, jname, job_name))
+        fir.add_create(CompiledEntry(slurmname, builder))
 
-    if submit:
-        os.chdir(dir_)
-        # Create analysis options file
-        num_coup = opts[KEYS.sim_genxcoupled]
-        num_uncp = opts[KEYS.sim_genxuncupld]
-        num_states = len(opts[KEYS.sim_fep_values]) + num_coup + num_uncp
-        num_coup += 1  # assuming fep has one coupled
-        num_uncp += 1  # assuming fep has one uncoupled
-        num_frames = int(opts[KEYS._expected_frames] + 1)
-        if opts[KEYS.sim_init_lambda] >= 0:
-            state_index = opts[KEYS.sim_init_lambda]
-        else:
-            state_index = num_states + opts[KEYS.sim_init_lambda]
+        tpr_files.append(backup.expandrelpath(tprname, bep_dir))
+        xtc_files.append(backup.expandrelpath(xtcname, bep_dir))
+        gro_files.append(backup.expandrelpath(groname, bep_dir))
+        xvg_files.append(backup.expandrelpath(xvgname, bep_dir))
 
-        analysis = BEPGen()
-        analysis.fields_output[BEPGen.KEYS.test_directory] = "."
-        analysis.fields_output[BEPGen.KEYS.base_func_dir] = ("~/Documents/" +
-            "git/binding-ensemble-analysis")
-        analysis.fields_output[BEPGen.KEYS.test_job_name] = job_name
-        analysis.fields_output[BEPGen.KEYS.number_of_states] = num_states
-        analysis.fields_output[BEPGen.KEYS.manual_num_states] = True
-        analysis.fields_output[BEPGen.KEYS.coupling_nums] = [num_coup, num_uncp]
-        analysis.fields_output[BEPGen.KEYS.ligplot_src] = ("~/Documents/" +
-            "LIGPLOT/source/ligplot.scr")
-        analysis.fields_output[BEPGen.KEYS.hbdir] = "~/Documents/LIGPLOT"
-        analysis.fields_output[BEPGen.KEYS.iterations_info] = [num_frames, 0]
-        analysis.fields_output[BEPGen.KEYS.last_states_coupled] = False
-        analysis.fields_output[BEPGen.KEYS.temperature] = opts[KEYS.
-            sim_temperature]
-        analysis.fields_output[BEPGen.KEYS.verbosity] = 2
-        analysis.fields_output[BEPGen.KEYS.ligand_res] = opts[KEYS.ligand]
-        analysis.fields_output[BEPGen.KEYS.gro_files] = gro_files
-        analysis.fields_output[BEPGen.KEYS.xtc_files] = xtc_files
-        analysis.fields_output[BEPGen.KEYS.tpr_files] = tpr_files
-        analysis.fields_output[BEPGen.KEYS.edr_files] = edr_files
-        analysis.fields_output[BEPGen.KEYS.dhdl_files] = xvg_files
-        analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
-        if opts[KEYS.sim_fixed_lambda]:
-            analysis.fields_output[BEPGen.KEYS.single_state] = state_index
+        frame_ps = opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]  # ps b/w frames
+        jobentry = job_utils.SaveEntry()
+        jobentry.jobname = job_name + suffix
+        jobentry.attr[ATTR.RESNAME] = opts[KEYS.ligand]
+        jobentry.attr[ATTR.LOG_NSTEP] = opts[KEYS.sim_nstout]
+        jobentry.attr[ATTR.LOG_DELTA] = frame_ps
+        jobentry.attr[ATTR.JOB_ID] = ""
+        jobentry.files["slurm"] = slurmname
+        jobentry.files["mdp"] = mdpname
+        jobentry.files["tpr"] = tprname
+        jobentry.files["xtc"] = xtcname
+        jobentry.files["xvg"] = xvgname
+        jobentry.files["log"] = logname
+        jobentry.files["out"] = outname
+        jobentry.files["top"] = topname
+        jobentry.files["ndx"] = ndxname
+        jobentry.files["gro"] = groname
+        jobentry.files["folder"] = jobdir
+        to_submit.append(jobentry)
+        if jobsave is not None:
+            jobsave.add_job(jobentry)
 
-        filename = "analysis_" + opts[KEYS.job_name] + ".bep"
-        filepath = os.path.realpath(filename)
-        analysis.write(filepath)
+    # Create analysis options file
+    num_coup = opts[KEYS.sim_genxcoupled]
+    num_uncp = opts[KEYS.sim_genxuncupld]
+    num_states = len(opts[KEYS.sim_fep_values]) + num_coup + num_uncp
+    num_coup += 1  # assuming fep has one coupled
+    num_uncp += 1  # assuming fep has one uncoupled
+    num_frames = int(opts[KEYS._expected_frames] + 1)
+    if opts[KEYS.sim_init_lambda] >= 0:
+        state_index = opts[KEYS.sim_init_lambda]
+    else:
+        state_index = num_states + opts[KEYS.sim_init_lambda]
 
-#         SAVE_LIBRARY[save_keys.files].append(filepath)
+    analysis = BEPGen()
+    analysis.fields_output[BEPGen.KEYS.test_directory] = "."
+    analysis.fields_output[BEPGen.KEYS.base_func_dir] = ("~/Documents/" +
+        "git/binding-ensemble-analysis")
+    analysis.fields_output[BEPGen.KEYS.test_job_name] = job_name
+    analysis.fields_output[BEPGen.KEYS.number_of_states] = num_states
+    analysis.fields_output[BEPGen.KEYS.manual_num_states] = True
+    analysis.fields_output[BEPGen.KEYS.coupling_nums] = [num_coup, num_uncp]
+    analysis.fields_output[BEPGen.KEYS.ligplot_src] = ("~/Documents/" +
+        "LIGPLOT/source/ligplot.scr")
+    analysis.fields_output[BEPGen.KEYS.hbdir] = "~/Documents/LIGPLOT"
+    analysis.fields_output[BEPGen.KEYS.iterations_info] = [num_frames, 0]
+    analysis.fields_output[BEPGen.KEYS.last_states_coupled] = False
+    analysis.fields_output[BEPGen.KEYS.temperature] = opts[KEYS.
+        sim_temperature]
+    analysis.fields_output[BEPGen.KEYS.verbosity] = 2
+    analysis.fields_output[BEPGen.KEYS.ligand_res] = opts[KEYS.ligand]
+    analysis.fields_output[BEPGen.KEYS.gro_files] = gro_files
+    analysis.fields_output[BEPGen.KEYS.xtc_files] = xtc_files
+    analysis.fields_output[BEPGen.KEYS.tpr_files] = tpr_files
+    analysis.fields_output[BEPGen.KEYS.dhdl_files] = xvg_files
+    analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
+    if opts[KEYS.sim_fixed_lambda]:
+        analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
-    os.chdir(fir.cwd)
-    return fir
+    bepname = os.path.join(bep_dir, "analyze-" + opts[KEYS.job_name] + ".bep")
+    fir.add_create(WriterEntry(bepname, analysis))
 
-def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
-    job_name = opts[KEYS.job_name]
-    if not job_name:
-        print('Job name not specified')
-        return
+    if opts[KEYS._dryrun]:
+        fir.describe()
+        for entry in to_submit:
+            print("DRYRUN: Would sbatch job " + entry.jobname)
+    else:
+        fir.execute()
+        init_gro = [None] * n_sim
+        if frames is not None:
+            init_gro = gro_gen.get_gro_frames(n_sim)
+            if len(init_gro) != n_sim:
+                ratio = len(init_gro) / float(n_sim)
+                copy_gro = list(init_gro)
+                init_gro = [None] * n_sim
+                for i in range(n_sim):
+                    init_gro[i] = copy_gro[int(ratio * i)]
+        for (entry, gro) in zip(to_submit, init_gro):
+            if gro is not None:
+                os.system("cp " + gro + " " + os.path.join(wrkdir,
+                                                           entry.files["gro"]))
 
-    if not name:
-        name = job_name
+            if opts[KEYS._submit]:
+                slurmfile = os.path.join(wrkdir, entry.files["slurm"])
+                jid = job_utils.submit_job(slurmfile, entry.jobname)
+                entry.attr[ATTR.JOB_ID] = jid
+        for gro in init_gro:
+            if (gro is not None) and os.path.exists(gro):
+                os.remove(gro)
 
+def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     cur_dir = os.getcwd()
     dir_ = os.path.expandvars(os.path.expanduser(dir_))
     if not os.path.exists(dir_):
         os.mkdir(dir_)
     os.chdir(dir_)
 
-    fep, coul, vdw, weights = [], [], [], []
-    fep.extend(opts[KEYS.sim_fep_values])
-    coul.extend(opts[KEYS.sim_coul_values])
-    vdw.extend(opts[KEYS.sim_vdw_values])
-    weights.extend(opts[KEYS.sim_weight_values])
+    fep = list(opts[KEYS.sim_fep_values])
+    coul = list(opts[KEYS.sim_coul_values])
+    vdw = list(opts[KEYS.sim_vdw_values])
+    weights = list(opts[KEYS.sim_weight_values])
     if verbose > 2:
         print('Debug, genstates')
 
+    orig_weight = list(weights)
+    add_weight = [1.0] * len(weights)
+
+    wgtxcoup = int(opts[KEYS.sim_genxcoupled])
+    wgtxuncp = int(opts[KEYS.sim_genxuncupld])
+    # coupled
     if verbose > 2:
-        print('Value coup {0}'.format(opts[KEYS.sim_wgtxcoupled]))
-    if opts[KEYS.sim_wgtxcoupled] > 0:
+        print('Value coup {0}'.format(wgtxcoup))
+    if type(wgtxcoup) in (int, float):
+        if (wgtxcoup > 0):
+            if verbose > 2:
+                print('weighting coupled state')
+            add_weight[0] = add_weight[0] * wgtxcoup
+    if type(wgtxcoup) in (list, tuple):
         if verbose > 2:
-            print('making more states, coupled')
-        for i in range(1, len(weights)):
-            weights[i] = weights[i] - math.log(opts[KEYS.sim_wgtxcoupled])
+            print('weighting coupled state')
+        for i in range(len(wgtxcoup)):
+            if (i < len(add_weight)) and (wgtxcoup[i] > 0):
+                add_weight[i] = add_weight[i] * wgtxcoup[i]
+    # uncoupled
     if verbose > 2:
-        print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
-    if opts[KEYS.sim_wgtxuncupld] > 0:
+        print('Value uncoup {0}'.format(wgtxuncp))
+    if type(wgtxuncp) in (int, float):
+        if (len(weights) > 0) and (wgtxcoup > 0):
+            if verbose > 2:
+                print('weighting uncoupled state')
+            add_weight[-1] = add_weight[-1] * wgtxuncp
+    if type(wgtxuncp) in (list, tuple):
         if verbose > 2:
-            print('making more states, uncoupled')
-        if len(weights) > 0:
-            weights[-1] = weights[-1] + math.log(opts[KEYS.sim_wgtxuncupld])
-    if opts[KEYS.sim_genxcoupled] > 0:
-        fep = [0.0] * int(opts[KEYS.sim_genxcoupled]) + fep
-        vdw = [0.0] * int(opts[KEYS.sim_genxcoupled]) + vdw
-        coul = [0.0] * int(opts[KEYS.sim_genxcoupled]) + coul
-        weights = [weights[0]] * int(opts[KEYS.sim_genxcoupled]) + weights
-    if opts[KEYS.sim_genxuncupld] > 0:
-        fep = fep + [0.0] * int(opts[KEYS.sim_genxuncupld])
-        vdw = vdw + [1.0] * int(opts[KEYS.sim_genxuncupld])
-        coul = coul + [1.0] * int(opts[KEYS.sim_genxuncupld])
-        weights = weights + [weights[-1]] * int(opts[KEYS.sim_genxuncupld])
+            print('weighting coupled state')
+        for i in range(len(wgtxuncp)):
+            if (i <= len(add_weight)) and (wgtxuncp[-i] > 0):
+                add_weight[-i] = add_weight[-i] * wgtxuncp[-i]
+    # apply modifcations
+    for i in range(len(weights)):
+        wgt = add_weight[i] / add_weight[0]
+        weights[i] += math.log(wgt)
+
+    genxcoup = int(opts[KEYS.sim_genxcoupled])
+    genxuncp = int(opts[KEYS.sim_genxuncupld])
+    if genxcoup > 0:
+        fep = [0.0] * genxcoup + fep
+        vdw = [0.0] * genxcoup + vdw
+        coul = [0.0] * genxcoup + coul
+        weights = [weights[0]] * genxcoup + weights
+    if genxuncp > 0:
+        fep = fep + [0.0] * genxuncp
+        vdw = vdw + [1.0] * genxuncp
+        coul = coul + [1.0] * genxuncp
+        weights = weights + [weights[-1]] * genxuncp
     if verbose > 2:
         print(weights)
 
@@ -1076,14 +1130,22 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         coul_lambdas += '{0:0.2f} '.format(c)
         vdw_lambdas += '{0:0.2f} '.format(v)
 
-    wl_weights = ''
+    wl_weights = ""
+    orig = None
+    addw = None
     if opts[KEYS.sim_weights]:
+        orig = "original weights: "
+        addw = "additional ln(factor): "
         for w in weights:
             wl_weights += '{0:0.5f} '.format(w)
+        for w in orig_weight:
+            orig += '{0:0.5f} '.format(w)
+        for w in add_weight:
+            addw += '{0:0.5f} '.format(w)
         if not len(fep) == len(weights):
             print('Number of weights not equal to number of states, please' +
                 ' address')
-            return False
+            return None
 
     equil = ""
     if opts[KEYS.sim_fixed_weights] and opts[KEYS.sim_weights]:
@@ -1115,90 +1177,36 @@ def make_mdp(opts, dir_='.', name=None, genseed=10200, lmcseed=10200):
         builder.set_precision("double")
     else:
         builder.set_precision("single")
-    builder.fields_general['nstout'] = opts[KEYS.sim_nstout]
-    builder.fields_general['temp'] = opts[KEYS.sim_temperature]
-    builder.fields_params['dt'] = dt;  # ps
-    builder.fields_params['time-ns'] = opts[KEYS.sim_time]
-    builder.fields_velocities['gen-seed'] = genseed
-    builder.fields_coupling['temp-alg'] = opts[KEYS.sim_temp_alg]
-    builder.fields_expdens['ligand'] = opts[KEYS.ligand]
-    builder.fields_expdens['fep-lambdas'] = fep_lambdas
-    builder.fields_expdens['coul-lambdas'] = coul_lambdas
-    builder.fields_expdens['vdw-lambdas'] = vdw_lambdas
-    builder.fields_expdens['init-lambda'] = init_lambda
-    builder.fields_expdens['init-state-index'] = state_index
-    builder.fields_expdens['nst-mc'] = opts[KEYS.sim_nst_mc]
-    builder.fields_expdens['weights-equil'] = equil
-    builder.fields_expdens['lmc-seed'] = lmcseed
-    builder.fields_expdens['gibbs-delta'] = int(opts[KEYS.sim_gibbs_delta])
-    builder.fields_expdens['wl-weights'] = wl_weights
-    builder.fields_expdens['wl-incr'] = opts[KEYS.sim_incrementor]
-    builder.fields_expdens['wl-scale'] = opts[KEYS.sim_wl_scale]
-    builder.fields_expdens['wl-ratio'] = opts[KEYS.sim_wl_ratio]
-
-    file_name = os.path.realpath(name + '.mdp')
-    file_ = open(file_name, 'w')
-    file_.write(builder.compile())
-    file_.close()
-#     SAVE_LIBRARY[save_keys.files].append(file_name)
+    builder.opt_nstout = opts[KEYS.sim_nstout]
+    builder.opt_temp = opts[KEYS.sim_temperature]
+    builder.opt_dt = dt;  # ps
+    builder.opt_timens = opts[KEYS.sim_time]
+    builder.opt_genseed = genseed
+    builder.opt_tempalg = opts[KEYS.sim_temp_alg]
+    builder.opt_ligand = opts[KEYS.ligand]
+    builder.opt_feplambdas = fep_lambdas
+    builder.opt_coullambdas = coul_lambdas
+    builder.opt_vdwlambdas = vdw_lambdas
+    builder.opt_initlambda = init_lambda
+    builder.opt_initlambdaindex = state_index
+    builder.opt_nstmc = opts[KEYS.sim_nst_mc]
+    builder.opt_weightsequil = equil
+    builder.opt_lmcseed = lmcseed
+    builder.opt_gibbsdelta = int(opts[KEYS.sim_gibbs_delta])
+    builder.cmt_weights1 = orig
+    builder.cmt_weights2 = addw
+    builder.opt_wlweights = wl_weights
+    builder.opt_wlincr = opts[KEYS.sim_incrementor]
+    builder.opt_wlscale = opts[KEYS.sim_wl_scale]
+    builder.opt_wlratio = opts[KEYS.sim_wl_ratio]
 
     os.chdir(cur_dir)
-    return True
+    return builder
 
-def gen_exit(_):
-    sys.exit(0)
-
-def gen_all(opts):
-    opts[KEYS._chain_all] = True
-
-    opts2 = dict(opts)  # backup
-    gen_equil(opts)
-
-    if opts[KEYS._dryrun]:
-        opts = dict(opts2)  # restore backup
-        gen_rand(opts)
-
-        opts = dict(opts2)  # restore backup
-        gen_array(opts)
-
-def gen_equil(opts):
-    opts[KEYS.subcommand] = 'equil'
-    opts[KEYS.mdr_count] = 1
-    opts[KEYS.sim_fixed_weights] = False
-    opts[KEYS.sim_weights] = False
-    opts[KEYS.sim_fixed_lambda] = False
-    opts[KEYS.sim_time] = opts[KEYS.auto_time_equil]
-    if opts[KEYS._job_name]:
-        opts[KEYS.job_name] = opts[KEYS._job_name] + '-equil'
-    generate(opts)
+def gen_exit(*args):
+    pass
 
 def gen_rand(opts):
-    if opts[KEYS._chain_all]:
-        # attempt to parse output of the equil step
-        try:
-            cur_dir = os.getcwd()
-            work_dir = backup.expandpath(opts[KEYS.work_dir])
-            os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-equil'))
-            file_name = '{0}-equil.log'.format(opts[KEYS.job_name])
-
-            logscan = job_utils.LogScan(file_name)
-            logscan.scan()
-            weights = logscan.get_wanglandau_weights()
-            opts[KEYS.sim_weight_values] = weights
-
-            os.chdir(work_dir)
-            param.write_options('rand#47#.save', {'weights': weights},
-                None, None)
-
-            os.chdir(cur_dir)
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
-            os.chdir(cur_dir)
-            if not opts[KEYS._dryrun]:
-                return
-
-    opts[KEYS.subcommand] = 'rand'
     opts[KEYS.mdr_count] = 1
     opts[KEYS.sim_fixed_weights] = False
     opts[KEYS.sim_weights] = False
@@ -1206,96 +1214,59 @@ def gen_rand(opts):
     opts[KEYS.sim_time] = opts[KEYS.auto_time_rand]
     if opts[KEYS._job_name]:
         opts[KEYS.job_name] = opts[KEYS._job_name] + '-rand'
-    generate(opts)
+
+    handle_job(opts)
+
+def gen_equil(opts):
+    if opts[KEYS.mdr_randsrc] is None:
+        randname = opts[KEYS.job_name] + "-rand"
+        opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
+    opts[KEYS.mdr_count] = 1
+    opts[KEYS.sim_fixed_weights] = False
+    opts[KEYS.sim_weights] = False
+    opts[KEYS.sim_fixed_lambda] = False
+    opts[KEYS.sim_time] = opts[KEYS.auto_time_equil]
+    if opts[KEYS._job_name]:
+        opts[KEYS.job_name] = opts[KEYS._job_name] + '-equil'
+
+    handle_job(opts)
 
 def gen_array(opts):
-    if opts[KEYS._chain_all]:
-        # attempt to parse output of the rand step
-        try:
-            cur_dir = os.getcwd()
-            work_dir = backup.expandpath(opts[KEYS.work_dir])
-            os.chdir(work_dir)
-            file_name = 'rand#47#.save'
-            if not os.path.exists(file_name):
-                raise Exception('Save file not found ' + file_name)
-            save_data = param.parse_options(file_name, dict())
-            if isinstance(save_data, list):  # v2.0+
-                save_data = save_data[0]
-            opts[KEYS.sim_weight_values] = save_data['weights']
-
-            os.chdir(os.path.join(work_dir, opts[KEYS.job_name] + '-rand'))
-            file_name = '{0}-rand.log'.format(opts[KEYS.job_name])
-
-            logscan = job_utils.LogScan(file_name)
-            logscan.scan()
-            num_of_steps = logscan.get_step_number()
-            # print("ns:" + str(num_of_steps))
-            # num_frames = math.floor(num_of_steps / opts[KEYS.sim_nstout])
-
-            base_name = opts[KEYS.base_name]
-            if not base_name:
-                base_name = opts[KEYS.job_name]
-            xtc_name = '{0}-rand.xtc'.format(opts[KEYS.job_name])
-            tpr_name = '{0}-rand.tpr'.format(opts[KEYS.job_name])
-            if not os.path.exists(xtc_name):
-                raise Exception('Simulation files not found ' + xtc_name +
-                    ' and/or ' + tpr_name)
-            cmnd = ('echo "System" | trjconv -f {xtc} -s {tpr} -o {gro}' +
-                ' -b {timeb} -e {timee} &>../trjconv{index}.log')
-            segments = (opts[KEYS.mdr_count] - 1)
-            if segments == 0:
-                spacing = 1  # will only be multiplied by 0
-            else:
-                spacing = num_of_steps / segments
-                # print("spac:" + str(spacing))
-
-            if ('GMXBIN' in os.environ and os.environ['GMXBIN'] and
-                os.environ['GMXBIN'] not in os.environ['PATH']):
-                print('Adding GMXBIN to PATH...')
-                os.environ['PATH'] = os.environ['PATH'] + ':' + os.environ['GMXBIN']
-
-            for i in range(segments + 1):
-                suffix = '-{0:0>2}'.format(i)
-                step_num = math.floor(i * spacing)  # evenly spaced frames
-                timeps = step_num * opts[KEYS.sim_dt]
-                # print("ps:" + str(timeps))
-                modif = 0.5 * opts[KEYS.sim_dt] * opts[KEYS.sim_nstout]
-                tb = timeps - modif
-                te = timeps + modif
-                gro_name = '../' + base_name + suffix + '-in.gro'
-                fmt = cmnd.format(xtc=xtc_name, tpr=tpr_name, gro=gro_name,
-                    timeb=tb, timee=te, index=suffix)
-                os.system(fmt)
-                if not os.path.exists(gro_name):
-                    raise Exception('Extraction of starting frames' +
-                        ' unsuccessful - Err: ' + gro_name)
-
-            os.chdir(cur_dir)
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
-            os.chdir(cur_dir)
-            if not opts[KEYS._dryrun]:
-                return
-
-    opts[KEYS.subcommand] = 'array'
+    if opts[KEYS.mdr_randsrc] is None:
+        randname = opts[KEYS.job_name] + "-rand"
+        opts[KEYS.mdr_randsrc] = os.path.join(randname, randname + ".xtc")
     opts[KEYS.sim_fixed_weights] = True
     opts[KEYS.sim_weights] = True
     opts[KEYS.sim_fixed_lambda] = False
     opts[KEYS.sim_time] = opts[KEYS.auto_time_array]
     if opts[KEYS._job_name]:
         opts[KEYS.job_name] = opts[KEYS._job_name]
-    generate(opts)
+
+    handle_job(opts)
 
 def gen_opt(opts):
     if opts[KEYS.run_mdp]:
-        make_mdp(opts)
-    if opts[KEYS.run_array]:
-        generate(opts)
+        builder = make_mdp(opts)
+        if builder is not None:
+            job_name = opts[KEYS.job_name]
+            if not job_name:
+                print('Job name not specified')
+                text = builder.compile()
+                for line in text.splitlines(keepends=True):
+                    print("\t" + line)
+            else:
+                name = job_name + ".mdp"
+                file_name = os.path.realpath(name)
+                file_ = open(file_name, 'w')
+                file_.write(builder.compile())
+                file_.close()
 
-def sim_status(save_lib):
-    for folder, job, name in save_lib[save_keys.folders]:
-        logfile = os.path.join(folder, name + ".log")
+    if opts[KEYS.run_array]:
+        handle_job(opts)
+
+def sim_status(jobsave):
+    for entry in jobsave.jobs:
+        logfile = entry.files["log"]
         status = "STATUS UNKNOWN"
         extra = None
         warn = None
@@ -1308,7 +1279,7 @@ def sim_status(save_lib):
                 scan.scan()
                 step = scan.get_step_number()
                 status = "IN PROGRESS"
-                outfile = os.path.join(folder, name + ".out")
+                outfile = entry.files["out"]
                 if os.path.exists(outfile):
                     for line in open(outfile, "r"):
                         if 'slurmstepd:' in line:
@@ -1332,7 +1303,7 @@ def sim_status(save_lib):
                 traceback.print_exc()
         else:
             status = "NOT STARTED"
-        print("{0:<16s} (Step {1:>10}) < ".format(status, step) + job)
+        print("{0:<16s} (Step {1:>10}) < ".format(status, step) + entry.jobname)
         if warn:
             print ("\t" + warn)
         if extra:
@@ -1340,46 +1311,56 @@ def sim_status(save_lib):
             for ex in extras:
                 print("\t" + ex)
 
-def sim_submit(save_lib):
-    submitted = False
-    for filename in save_lib[save_keys.files]:
-        filename = str(filename)
-        if os.path.exists(filename) and filename.endswith('.slurm'):
-            submitted = True
-            job = os.path.basename(filename)
-            num = submit_slurm(filename, job)
-            save_lib[save_keys.jobs].append((job, num))
-    if submitted:
-        saver.write_options(save_lib[save_keys.name], save_lib)
+def sim_submit(jobsave):
+    for entry in jobsave.jobs:
+        slurmname = entry.files["slurm"]
+        if os.path.exists(slurmname) and slurmname.endswith('.slurm'):
+            job = os.path.basename(slurmname)
+            num = job_utils.submit_job(slurmname, job)
+            entry.attr[ATTR.JOB_ID] = num
 
-def sim_cancel(save_lib):
-    for name, num in save_lib[save_keys.jobs]:
-        if verbose > 0:
-            print('Cancelling ' + name + ', job #' + str(num))
-        os.system("scancel " + str(num))
-
-def sim_clean(save_lib):
-    for filename in save_lib[save_keys.files]:
-        if os.path.exists(filename):
+def sim_cancel(jobsave):
+    for entry in jobsave.jobs:
+        jobname = entry.jobname
+        jobid = entry.attr[ATTR.JOB_ID]
+        if jobid.isdigit():
             if verbose > 0:
-                print('Removing ' + filename)
-            os.system("rm " + filename)
-    for folder, _, _ in save_lib[save_keys.folders]:
-        if os.path.exists(folder):
+                print('Cancelling ' + jobname + ', job #' + jobid)
+            os.system("scancel " + jobid)
+        elif verbose > 0:
+                print(jobname + " appears to not have been submitted.")
+
+def sim_clean(jobsave):
+    for entry in jobsave.jobs:
+        filelist = []
+        filelist.append(entry.files["slurm"])
+        filelist.append(entry.files["mdp"])
+        filelist.append(entry.files["tpr"])
+        filelist.append(entry.files["xtc"])
+        filelist.append(entry.files["xvg"])
+        filelist.append(entry.files["log"])
+        filelist.append(entry.files["out"])
+        for filename in filelist:
+            if os.path.exists(filename):
+                if verbose > 0:
+                    print('Removing ' + filename)
+                os.remove(filename)
+        folder = entry.files["folder"]
+        if os.path.isdir(folder):
             if verbose > 0:
                 print('Removing folder ' + folder)
             os.system("rm -r " + folder)
 
-def setup(options, args, opts, parser, cur_dir, save_name):
+def setup(args, opts, parser, cur_dir, save_name):
     global verbose  # ensure that we are talking about the same verbose here
-    if options.verbose:
-        verbose = options.verbose
+    if args.verbose:
+        verbose = args.verbose
     else:
         verbose = opts[KEYS.verbosity]
     opts[KEYS.verbosity] = verbose
 
-    if args:
-        subcommand = args[0]
+    if args.subcommand:
+        subcommand = args.subcommand[0]
         if subcommand not in SUBS:
             subcommand = 'exit'
     else:
@@ -1388,18 +1369,17 @@ def setup(options, args, opts, parser, cur_dir, save_name):
     if subcommand == 'exit':
         parser.print_help()
 
-    if options.n:
-        opts[KEYS.job_name] = options.n
-    if options.b:
-        opts[KEYS.base_name] = options.b
-    if options.mdp:
-        opts[KEYS.run_mdp] = options.mdp
-    if options.slurm:
-        opts[KEYS.run_array] = options.slurm
+    if args.n:
+        opts[KEYS.job_name] = args.n
+    if args.b:
+        opts[KEYS.base_name] = args.b
+    if args.mdp:
+        opts[KEYS.run_mdp] = args.mdp
+    if args.slurm:
+        opts[KEYS.run_array] = args.slurm
     opts[KEYS.subcommand] = subcommand
 
     if opts[KEYS.mdr_seedrand] == None:
-        import random
         opts[KEYS.mdr_seedrand] = random.randint(0, 65536)
 
     if subcommand in POST_COMMANDS:
@@ -1412,38 +1392,42 @@ def setup(options, args, opts, parser, cur_dir, save_name):
                     break
         if save_name == None:
             print(subcommand + " requires a save file to be specified")
-            return False  # don't print save files
         else:
             save_path = os.path.realpath(save_name)
             print('Reading previous launch files from ' + save_path)
-            save_lib = saver.parse_options(save_path)
-            if isinstance(save_lib, list):
-                save_lib = save_lib[0]
-            save_lib[save_keys.name] = save_path
-            SUBS[subcommand](save_lib)
-            return False  # don't print save files
+            jobsave = job_utils.SaveJobs()
+            jobsave.load(save_path)
+
+            here = os.getcwd()
+            os.chdir(os.path.dirname(jobsave.filename))
+            SUBS[subcommand](jobsave)
+            os.chdir(here)
+            jobsave.save()
+        return
 
     # output run options
     if opts[KEYS.job_name]:
         param_name = opts[KEYS.job_name] + param.file_ext
-        param_out = backup.backup_file('./', param_name, verbose=verbose)
     else:
         param_name = param.file_ext
-        param_out = backup.backup_file('', param_name, verbose=verbose)
-    param.write_options(param_out, opts)
+    wrkdir = os.path.join(backup.expandrelpath(opts[KEYS.work_dir]), "")
+    param_name = os.path.join(wrkdir, param_name)
 
     opts[KEYS._calling_dir] = os.path.join(cur_dir, '')
-    opts[KEYS._params] = options.par
+    opts[KEYS._params] = args.par
     opts[KEYS._params_out] = param_name
-    opts[KEYS._chain_all] = False
-    if args and len(args) > 1:
-        flag = args[1]
-        if flag == KEYS._chain_all:
-            opts[KEYS._chain_all] = True
 
     opts[KEYS._job_name] = opts[KEYS.job_name]  # backup the original name
-    opts[KEYS._submit] = options.submit or options.dryrun
-    opts[KEYS._dryrun] = options.dryrun
+    opts[KEYS._submit] = args.submit
+    opts[KEYS._dryrun] = args.dryrun
+
+    if args.dryrun:
+        print("DRYRUN: Would write full option file " + param_name)
+    else:
+        if not os.path.isdir(wrkdir):
+            os.mkdir(wrkdir)
+        param_out = backup.backup_file('', param_name, verbose=verbose)
+        param.write_options(param_out, opts)
 
     # perform requested file output and job submissions
     SUBS[subcommand](opts)
@@ -1455,57 +1439,62 @@ def main(argv=None):
 
     cur_dir = os.getcwd()
     name_ = os.path.basename(__file__).replace('.pyc', '').replace('.py', '')
-    print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) + '\n')
+    print('Invocation of %s:\n\t%s ' % (__file__, name_) + " ".join(argv) +
+          '\n')
 
     opts = option_defaults()
+    subhelp = ("indicate a procedure to follow for this call\n" +
+        "The following subcommands may be used:\n" +
+        "  {0:<12s} - run the Wang-Landau equilibriation\n".format('equil') +
+        "  {0:<12s} - run a position randomizing simulation\n".format('rand') +
+        "  {0:<12s} - run a batch of simulations\n".format('array') +
+        "  {0:<12s} - output a formatted mdp file\n".format('mdp') +
+        "  {0:<12s} - perform tasks based on a param file\n".format('opt') +
+        "  {0:<12s} - cancel a series of tasks run by {1}\n".format('cancel',
+            name_) +
+        "  {0:<12s} - delete a series of tasks run by {1}\n".format('clean',
+            name_) +
+        "  {0:<12s} - check a series of tasks run by {1}\n".format('status',
+            name_) +
+        "  {0:<12s} - submit a series of tasks run by {1}\n".format('submit',
+            name_) +
+        "  {0:<12s} - print usage and exit".format('exit'))
 
-    parser = OptionParser()
-    parser.set_description("Generates Rivanna SLURM scripts for" +
-        " running Gromacs simulations")
-    parser.add_option("-v", "--verbose", help="Increase output frequency" +
+    parser = ArgumentParser(description="Generates Rivanna SLURM scripts for" +
+        " running Gromacs simulations", prog=name_,
+        formatter_class=RawTextHelpFormatter)
+    parser.add_argument("subcommand", help=subhelp, nargs='*')
+    parser.add_argument("-v", "--verbose", help="Increase output frequency" +
         " and detail. Stacks three times.", action="count")
-    parser.add_option("--par", help="Optional configuration file to specify" +
-        " command line parameters and more.",
+    parser.add_argument("--par", help="Optional configuration file to" +
+        " specify command line parameters and more.",
         default=None, metavar="file.par")
-    parser.add_option("--save", help="File generated by a previous run of the" +
-        " code, needed to check status or other similar tasks",
+    parser.add_argument("--save", help="File generated by a previous run of" +
+        " the code, needed to check status or other similar tasks",
         default=None, metavar=("file.save"))
-    parser.add_option("--slurm", help="""Prepare scripts to run on Rivanna""",
+    parser.add_argument("--slurm", help="""Prepare scripts to run on Rivanna""",
         default=None, action='store_true')
-    parser.add_option("--mdp", help="Output the Molecular Dynamics Parameters" +
-        " (.mdp) configuration file",
+    parser.add_argument("--mdp", help="Output the Molecular Dynamics" +
+        " Parameters (.mdp) configuration file",
         default=None, action='store_true')
-    parser.add_option("-n", help="""Job name for output""", metavar="sim")
-    parser.add_option("-b", help="""Base name for job input""", metavar="sim")
-    parser.add_option("--submit", action='store_true')
-    parser.add_option("--dryrun", action='store_true')
-
-    parser.set_usage(name_ + '.py' + " subcommand [options]\n"
-        "\tThe following subcommands may be used:\n" +
-        "\t  {0:<12s} - run an entire array production\n".format('all') +
-        "\t  {0:<12s} - run the Wang-Landau equilibriation\n".format('equil') +
-        "\t  {0:<12s} - run a position randomizing simulation\n".format('rand') +
-        "\t  {0:<12s} - run a batch of simulations\n".format('array') +
-        "\t  {0:<12s} - output a formatted mdp file\n".format('mdp') +
-        "\t  {0:<12s} - perform tasks based on a param file\n".format('opt') +
-        "\t  {0:<12s} - cancel a series of tasks run by {1}\n".format('cancel',
-            name_) +
-        "\t  {0:<12s} - delete a series of tasks run by {1}\n".format('clean',
-            name_) +
-        "\t  {0:<12s} - check a series of tasks run by {1}\n".format('status',
-            name_) +
-        "\t  {0:<12s} - print usage and exit".format('exit'))
+    parser.add_argument("-n", help="""Job name for output""", metavar="sim")
+    parser.add_argument("-b", help="""Base name for job input""", metavar="sim")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--submit", action='store_true', help="Give permission" +
+        " to submit the created jobs to the slurm controller using sbatch")
+    group.add_argument("--dryrun", action='store_true', help="Overrides" +
+        " --submit, make no files but print what would be done")
 
     if len(argv) < 1:
         parser.print_help()
         return 0
 
-    (options, args) = parser.parse_args(argv)
+    args = parser.parse_args(argv)
 
     # handle options, reading from file if requested
-    if options.par:
-        print('Reading parameters from ' + options.par)
-        opt_list = param.parse_options(options.par, opts)
+    if args.par:
+        print('Reading parameters from ' + args.par)
+        opt_list = param.parse_options(args.par, opts)
         if not opt_list:
             print('Error reading from parameters file.')
             return 1
@@ -1513,41 +1502,27 @@ def main(argv=None):
         opt_list = opts
 
     save_name = None
-    if options.save:
-        save_name = options.save
+    if args.save:
+        save_name = args.save
 
-#     global SAVE_LIBRARY
-#     SAVE_LIBRARY = job_utils.save_defaults()
+    if args.dryrun:
+        args.submit = False
 
-    do_output = False
     if isinstance(opt_list, list):
-        if options.verbose:
+        if args.verbose:
             print("List received, parameters are v2+, {0} entries".format(
                 len(opt_list)))
         for opts in opt_list:
-            do_output = (setup(options, args, opts, parser, cur_dir, save_name)
-                or do_output)
+            setup(args, opts, parser, cur_dir, save_name)
         opts = opt_list[0]
     else:
-        if options.verbose:
+        if args.verbose:
             print("Dictionary received, parameters are v1.x")
-        do_output = setup(options, args, opt_list, parser, cur_dir, save_name)
+        setup(args, opt_list, parser, cur_dir, save_name)
         opts = opt_list
 
-    if not do_output:
-        return 0
-
-    if options.par:
-        par_base = os.path.basename(options.par)
-        save_name = par_base.replace(param._file_ext(), "") + ".save"
-        save_out = backup.backup_file('./', save_name, verbose=verbose)
-    else:
-        save_name = name_ + ".save"
-        save_out = backup.backup_file('', save_name, verbose=verbose)
-    saver.write_options(save_out, SAVE_LIBRARY)
-
 POST_COMMANDS.extend(['status', 'submit', 'cancel', 'clean'])
-SUBS.update({'exit': gen_exit, 'all': gen_all, 'equil': gen_equil,
+SUBS.update({'exit': gen_exit, 'equil': gen_equil,
     'rand': gen_rand, 'array': gen_array, 'mdp': make_mdp,
     'opt': gen_opt, 'status': sim_status, 'submit': sim_submit,
     'cancel': sim_cancel, 'clean': sim_clean})
