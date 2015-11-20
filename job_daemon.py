@@ -113,17 +113,21 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None,
         fname = "".join(fname.split(".")[:-1]) + ".slurm"
     else:
         fname += ".slurm"
+    opdir = os.path.dirname(fname)
     count = 1
     outname = "daemon-1.log"
-    while os.path.exists(outname):
+    outpath = os.path.join(opdir, outname)
+    while os.path.exists(outpath):
         count += 1
         outname = "daemon-" + str(count) + ".log"
+        outpath = os.path.join(opdir, outname)
 
     extr = ""
     if live:
         extr = " --live"
 
-    cmd = "python -u " + pathtohere + " " + savefilename + extr
+    cmd = ("python -u " + pathtohere + " " + os.path.basename(savefilename) +
+           extr)
     if time != None:
         slurm = get_slurm(jobname, cmd, time, outname)
     else:
