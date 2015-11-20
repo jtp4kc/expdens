@@ -1068,8 +1068,8 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     orig_weight = list(weights)
     add_weight = [1.0] * len(weights)
 
-    wgtxcoup = int(opts[KEYS.sim_genxcoupled])
-    wgtxuncp = int(opts[KEYS.sim_genxuncupld])
+    wgtxcoup = int(opts[KEYS.sim_wgtxcoupled])
+    wgtxuncp = int(opts[KEYS.sim_wgtxuncupld])
     # coupled
     if verbose > 2:
         print('Value coup {0}'.format(wgtxcoup))
