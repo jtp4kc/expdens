@@ -941,7 +941,7 @@ def make_job(opts, jobsave=None):
         builder.opt_workdir = slurmworkdir
         builder.opt_timens = opts[KEYS.sim_time]
         builder.opt_queuetime = opts[KEYS.mdr_queue_time]
-        builder.file_out = job_name + ".out"
+        builder.file_out = job_name + suffix + ".out"
 
         builder.file_mdp = backup.expandrelpath(mdpname, loc)
         builder.file_gro = backup.expandrelpath(groname, loc)
