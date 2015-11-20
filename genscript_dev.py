@@ -835,8 +835,7 @@ def handle_job(opts):
     if not opts[KEYS._dryrun]:
         jobsave.save(savename)
     if opts[KEYS._submit]:
-        job_daemon.reschedule_self(job, job + ".save", time="7-00:00:00",
-                                   live=True)
+        job_daemon.reschedule_self(job, savename, time="7-00:00:00", live=True)
 
 def make_job(opts, jobsave=None):
     job_name = opts[KEYS.job_name]
