@@ -1072,9 +1072,10 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     if verbose > 2:
         print('Value coup {0}'.format(wgtxcoup))
     if type(wgtxcoup) in (int, float):
-        if verbose > 2:
-            print('weighting coupled state')
-        add_weight[0] = add_weight[0] * wgtxcoup
+        if (wgtxcoup > 0):
+            if verbose > 2:
+                print('weighting coupled state')
+            add_weight[0] = add_weight[0] * wgtxcoup
     if type(wgtxcoup) in (list, tuple):
         if verbose > 2:
             print('weighting coupled state')
@@ -1085,9 +1086,9 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     if verbose > 2:
         print('Value uncoup {0}'.format(opts[KEYS.sim_wgtxuncupld]))
     if type(wgtxuncp) in (int, float):
-        if verbose > 2:
-            print('weighting uncoupled state')
-        if len(weights) > 0:
+        if (len(weights) > 0) and (wgtxcoup > 0):
+            if verbose > 2:
+                print('weighting uncoupled state')
             add_weight[-1] = add_weight[-1] * wgtxuncp
     if type(wgtxuncp) in (list, tuple):
         if verbose > 2:
