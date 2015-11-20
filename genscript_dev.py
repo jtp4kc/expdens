@@ -1039,7 +1039,8 @@ def make_job(opts, jobsave=None):
                                                            entry.files["gro"]))
 
             if opts[KEYS._submit]:
-                jid = job_utils.submit_job(entry.files["slurm"], entry.jobname)
+                slurmfile = os.path.join(wrkdir, entry.files["slurm"])
+                jid = job_utils.submit_job(slurmfile, entry.jobname)
                 entry.attr[ATTR.JOB_ID] = jid
         for gro in init_gro:
             if (gro is not None) and os.path.exists(gro):
