@@ -114,6 +114,7 @@ def reschedule_self(jobname, savefilename, pathtohere=None, time=None,
     else:
         fname += ".slurm"
     opdir = os.path.dirname(fname)
+    fname = os.path.join(opdir, "daemon-" + os.path.basename(fname))
     count = 1
     outname = "daemon-" + jobname + "-1.log"
     outpath = os.path.join(opdir, outname)
@@ -1007,6 +1008,19 @@ def test_daemon(savename):
     savemgr.save(savename)
     daemon(savename, live=False)
 
+def mergefiles(mergename, savefiles):
+    newsave = job_utils.SaveJobs()
+
+    for sname in savefiles:
+        readsave = job_utils.SaveJobs()
+        readsave.load(sname)
+        newsave.jobs.extend(readsave.jobs)
+        newsave.attr.update(readsave.attr)
+    newsave.attr["name"] = mergename
+
+    svdir = os.path.dirname(savefiles[0])
+    newsave.save(os.path.join(svdir, mergename + ".save"))
+
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
 
@@ -1051,7 +1065,8 @@ USAGE
             " These jobs are the ones that will be monitored and analyzed.")
         parser.add_argument('-s', '--submit', help="Instead of starting" +
             " immediately, submit a script using the slurm scheduler. The" +
-            " value passed will be used as the job name.", default=None)
+            " value passed will be used as the job name.", default=None,
+            nargs="+")
         parser.add_argument('-t', '--time', help="Time to request on the" +
             " cluster, this will be the max time allowed for this to run." +
             " Format: d-HH:mm:ss", default=None)
@@ -1062,6 +1077,9 @@ USAGE
             " The output from the daemon can be used" +
             " to debug issues. This overrides all other options. The process" +
             " is run in the current workspace (does not submit an sbatch job).")
+        parser.add_argument('-m', '--merge', help="merge a number of save" +
+            "files together using the name passed to this param. New save is" +
+            " created in the same location as first param", default=None)
 
 
         # Process arguments
@@ -1073,8 +1091,9 @@ USAGE
 
         save_name = None
         if args.save:
-            save_name = args.save
+            save_name = args.save[0]
         submit = args.submit
+        merge = args.merge
         time = "7-00:00:00"
         live = False
         test = False
@@ -1086,7 +1105,9 @@ USAGE
             test = True
 
         if save_name:
-            if test:
+            if merge is not None:
+                mergefiles(merge, args.save)
+            elif test:
                 test_daemon(save_name)
             elif submit != None:
                 reschedule_self(submit, save_name, time=time, live=live)
