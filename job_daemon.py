@@ -262,7 +262,7 @@ def resubmit_job(entry, live, prev=False):
         return
 
     if prev:
-        cptfile = _filename(entry, "_prev")
+        cptfile = _filename(entry, "prev")
     else:
         cptfile = _filename(entry, "cpt")
     cptfpath = os.path.relpath(cptfile, os.path.dirname(slurmfile))
@@ -996,7 +996,7 @@ def test_daemon(savename):
         prefix = entry.jobname.split("-")[1]
         for ext in exts:
             entry.files[ext] = os.path.join(workdir, prefix + "." + ext)
-        entry.files["_prev"] = os.path.join(workdir, prefix + "_prev.cpt")
+        entry.files["prev"] = os.path.join(workdir, prefix + "_prev.cpt")
 
     generate_runentry(run_entry)
     generate_warnentry(warn_entry)

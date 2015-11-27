@@ -906,6 +906,8 @@ def make_job(opts, jobsave=None):
         xvgname = os.path.join(jobdir, job_name + suffix + '.xvg')
         logname = os.path.join(jobdir, job_name + suffix + '.log')
         outname = os.path.join(jobdir, job_name + suffix + '.out')
+        cptname = os.path.join(jobdir, job_name + suffix + '.cpt')
+        prvname = os.path.join(jobdir, job_name + suffix + '_prev.cpt')
         ndxname = os.path.join(indir, base_name + '.ndx')
         topname = os.path.join(indir, base_name + '.top')
         groname = os.path.join(indir, base_name + '-in.gro')
@@ -978,6 +980,8 @@ def make_job(opts, jobsave=None):
         jobentry.files["top"] = topname
         jobentry.files["ndx"] = ndxname
         jobentry.files["gro"] = groname
+        jobentry.files["cpt"] = cptname
+        jobentry.files["prev"] = prvname
         jobentry.files["folder"] = jobdir
         to_submit.append(jobentry)
         if jobsave is not None:
