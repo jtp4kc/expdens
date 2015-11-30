@@ -1021,6 +1021,18 @@ def mergefiles(mergename, savefiles):
     svdir = os.path.dirname(savefiles[0])
     newsave.save(os.path.join(svdir, mergename + ".save"))
 
+def extractinfo(savename):
+    savemgr = job_utils.SaveJobs()
+    savemgr.load(savename)
+
+
+    for entry in savemgr.get_jobs():
+        logscan = check_log(entry)
+        if "Count" in logscan.log_entries:
+            nsamples = logscan.log_numbers["Count"]
+            print(entry.jobname)
+            print("\t".join(nsamples))
+
 def main(argv=None):  # IGNORE:C0111
     '''Command line options.'''
 
@@ -1078,9 +1090,11 @@ USAGE
             " to debug issues. This overrides all other options. The process" +
             " is run in the current workspace (does not submit an sbatch job).")
         parser.add_argument('-m', '--merge', help="merge a number of save" +
-            "files together using the name passed to this param. New save is" +
-            " created in the same location as first param", default=None)
-
+            " files together using the name passed to this param. New save" +
+            " is created in the same location as first param", default=None)
+        parser.add_argument('-e', '--extract', help="extract information" +
+            " from the log files of a set of jobs detailed by the save file." +
+            " Does not start the daemon.", action="store_true")
 
         # Process arguments
         args = parser.parse_args()
@@ -1097,16 +1111,21 @@ USAGE
         time = "7-00:00:00"
         live = False
         test = False
+        extract = False
         if args.time:
             time = args.time
         if args.live:
             live = True
         if args.test:
             test = True
+        if args.extract:
+            extract = True
 
         if save_name:
             if merge is not None:
                 mergefiles(merge, args.save)
+            elif extract:
+                extractinfo(save_name)
             elif test:
                 test_daemon(save_name)
             elif submit != None:

@@ -138,6 +138,8 @@ class LogScan:
         self.fail_statement = ""
         self.log_entries = []
         self.log_numbers = {}
+        self.energy_items = []
+        self.energy_data = []
 
     def scan(self):
         if not os.path.exists(self.filepath):
@@ -178,6 +180,8 @@ class LogScan:
 
         count = 0
         capture_weights = False
+        capture_energies = False
+        label = False
         for line in self.newscan:
             count += 1
             if count == 2:
@@ -191,6 +195,7 @@ class LogScan:
                         print(str(tb) + ":" + str(e))
             if line.isspace():
                 capture_weights = False
+                capture_energies = False
             if capture_weights:
                 splt = line.split()
                 for i in range(len(splt)):
@@ -198,12 +203,26 @@ class LogScan:
                     self.log_numbers[col].append(splt[i])
                 weight = float(splt[5])
                 self.weights.append(weight)
+            if capture_energies:
+                n = len(line)
+                for i in range(n / 15 + 1):
+                    part = line[i:(i + 15)].strip()
+                    if part == "":
+                        continue
+                    if label:
+                        self.energy_items.append(part)
+                    else:
+                        self.energy_data.append(part)
+                label = not label
             if 'N' in line and 'Count' in line and 'G(in kT)' in line:
                 for col in line.split():
                     self.log_entries.append(col)
                     self.log_numbers[col] = []
                 capture_weights = True
                 self.weights = []
+            if 'Energies' in line:
+                capture_energies = True
+                label = True
 
         if len(self.midscan) > 1:
             line = self.midscan[1]
