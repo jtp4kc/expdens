@@ -439,6 +439,16 @@ class ExtractFrames:
             timeval = (i * self.log_delta) * time_delta
             tb = timeval - modif
             te = timeval + modif
+            print("log delta")
+            print(self.log_delta)
+            print("time delta")
+            print(time_delta)
+            print("i")
+            print(i)
+            print("n")
+            print(n)
+            print("frames")
+            print(frames)
             gro_name = self.xtc.replace(".xtc", suffix + '-in.gro')
             fmt = cmnd.format(xtc=self.xtc, tpr=self.tpr, gro=gro_name,
                 timeb=tb, timee=te, index=suffix)
