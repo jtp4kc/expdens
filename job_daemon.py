@@ -354,9 +354,12 @@ def analyze_job(entry, logscan, is_being_removed, live):
     message1 = None
     message2 = None
     if "Count" in logscan.log_entries:
-        count = logscan.log_numbers["Count"]
+        data = logscan.log_numbers["Count"]
+        count = []
+        for number in data:
+            count.append(int(number))
         if len(count) > 0:
-            count = numpy.array(count)
+            count = numpy.array(count, numpy.int32)
             message1 = "[" + numpy.array2string(count, precision=3,
                                          separator=", ") + "]"
             avg = numpy.average(count)
