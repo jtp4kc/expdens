@@ -73,6 +73,7 @@ class Attr():
         # can't contain '-' or other special characters
         self.NUM_STEPS = "num_of_steps"
         self.OLD_STEPS = "oldnum_steps"
+        self.VIS_MARK = "steps_visualized"
         self.STATUS = "run_status"
         self.TIME = "last_checked"
         self.IGNORE = "daemon_ignore"
@@ -330,42 +331,50 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Would move " + tmpfile + " to " + slurmfile)
         print("DRYRUN: Would sbatch " + slurmfile + " and store job id")
 
-def analyze_job(entry, logscan, live):
+def analyze_job(entry, logscan, is_being_removed, live):
     tprfile = _filename(entry, "tpr")
     xtcfile = _filename(entry, "xtc")
     xvgfile = _filename(entry, "xvg")
 
-    nstep = int(entry.attr[ATTR.LOG_NSTEP])
-    start = int(entry.attr[ATTR.OLD_STEPS]) / nstep
-    end = int(entry.attr[ATTR.NUM_STEPS]) / nstep
-    delta = end - start
-    dt = float(entry.attr[ATTR.LOG_DELTA])
     resname = entry.attr[ATTR.RESNAME]
+    dt = float(entry.attr[ATTR.LOG_DELTA])
+    frames_per_ns = int(1000 / dt)
+
+    nstep = int(entry.attr[ATTR.LOG_NSTEP])
+    last = int(entry.attr[ATTR.OLD_STEPS]) / nstep
+    now = int(entry.attr[ATTR.NUM_STEPS]) / nstep
+    delta = now - last
+    nanoseconds = int(now / frames_per_ns)  # how many ns have passed?
+    end = nanoseconds * frames_per_ns  # how many frames for this many ns?
+    # this rounds the current end value to the nearest ns
+
+    if ATTR.VIS_MARK not in entry.attr:
+        entry.attr[ATTR.VIS_MARK] = 0
+
+    message1 = None
+    message2 = None
+    if "Count" in logscan.log_entries:
+        count = logscan.log_numbers["Count"]
+        if len(count) > 0:
+            count = numpy.array(count)
+            message1 = "[" + numpy.array2string(count, precision=3,
+                                         separator=", ") + "]"
+            avg = numpy.average(count)
+            count /= avg
+            count /= numpy.min(count)
+            message2 = "[" + numpy.array2string(count, precision=3,
+                                         separator=", ") + "]"
+
+    if message1 is not None:
+        print("Current number of samples:")
+        print(message1)
+        print("Current ratio of samples:")
+        print(message2)
 
     if delta <= 0:
         print("Entry " + entry.jobname + " appears to have made no progress")
-        print("Old: {0}, New: {1}, Delta: {2}".format(start, end, delta))
-    else:
-        message1 = None
-        message2 = None
-        if "Count" in logscan.log_entries:
-            count = logscan.log_numbers["Count"]
-            if len(count) > 0:
-                count = numpy.array(count)
-                message1 = "[" + numpy.array2string(count, precision=3,
-                                             separator=", ") + "]"
-                avg = numpy.average(count)
-                count /= avg
-                count /= numpy.min(count)
-                message2 = "[" + numpy.array2string(count, precision=3,
-                                             separator=", ") + "]"
-
-        if message1 is not None:
-            print("Current number of samples:")
-            print(message1)
-            print("Current ratio of samples:")
-            print(message2)
-
+        print("Old: {0}, New: {1}, Delta: {2}".format(last, now, delta))
+    elif (entry.attr[ATTR.VIS_MARK] < end) or is_being_removed:
         workdir = os.path.join("daemon-vis", "")
         fldrname = os.path.basename(os.path.dirname(xtcfile))
         newfldr = os.path.join(workdir, fldrname, "")
@@ -393,14 +402,23 @@ def analyze_job(entry, logscan, live):
         tpr2 = os.path.join(newfldr, os.path.basename(tprfile))
         xtc2 = os.path.join(newfldr, os.path.basename(xtcfile))
         xvg2 = os.path.join(newfldr, os.path.basename(xvgfile))
+
+        start = entry.attr[ATTR.VIS_MARK]
+        if is_being_removed:
+            end = now
+        length = end - start
+
         if live:
             visualizer.visualize(tpr2, xtc2, xvg2, resname,
-                nstart=start, nlength=delta, doCenter=True, doVMD=True,
+                nstart=start, nlength=length, doCenter=True, doVMD=True,
                 timedelta=dt)
         else:
             print("DRYRUN: Would make a call to visualizer to generate vmd" +
                   " instructions using " + xtc2)
-
+        entry.attr[ATTR.VIS_MARK] = end
+    else:
+        print("Waiting for a nanosecond of simulation to pass before" +
+              " visualizing.")
 
 def check_cancel():
     return os.path.exists("daemon-cancel.txt")
@@ -473,9 +491,9 @@ def daemon(savefilename, live=False):
                     elif cpt:
                         resubmit_job(entry, live, prev=False)
                     else:  # analyze
-                        analyze_job(entry, logscan, live)
                         if status == "Cancelled":  # if not reschedule
                             remove_job = True
+                        analyze_job(entry, logscan, remove_job, live)
 
                     if remove_job:
                         # mark as ignore and remove from current list
