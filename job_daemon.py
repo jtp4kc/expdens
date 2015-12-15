@@ -349,12 +349,12 @@ def analyze_job(entry, logscan, is_being_removed, live):
     # this rounds the current end value to the nearest ns
 
     if ATTR.VIS_MARK not in entry.attr:
-        entry.attr[ATTR.VIS_MARK] = 0
+        entry.attr[ATTR.VIS_MARK] = "0"
 
     print(("Analysis, step numbers: dt|{0:0.2f} fpn|{1:0.0f} log#steps|" +
            "{2:0.0f} last|{3:0.0f} now|{4:0.0f} ns|{5:0.0f} vis|{6:0.0f}" +
            " end|{7:0.0f}").format(dt, frames_per_ns, nstep, last, now,
-           nanoseconds, entry.attr[ATTR.VIS_MARK], end))
+           nanoseconds, int(entry.attr[ATTR.VIS_MARK]), end))
 
     message1 = None
     message2 = None
@@ -383,7 +383,7 @@ def analyze_job(entry, logscan, is_being_removed, live):
         print("Entry " + entry.jobname + " appears to have made no progress")
         print("Old: {0}, New: {1}, Delta: {2}".format(last, now, delta))
 
-    if (entry.attr[ATTR.VIS_MARK] < end) or is_being_removed:
+    if (int(entry.attr[ATTR.VIS_MARK]) < end) or is_being_removed:
         workdir = os.path.join("daemon-vis", "")
         fldrname = os.path.basename(os.path.dirname(xtcfile))
         newfldr = os.path.join(workdir, fldrname, "")
@@ -412,7 +412,7 @@ def analyze_job(entry, logscan, is_being_removed, live):
         xtc2 = os.path.join(newfldr, os.path.basename(xtcfile))
         xvg2 = os.path.join(newfldr, os.path.basename(xvgfile))
 
-        start = entry.attr[ATTR.VIS_MARK]
+        start = int(entry.attr[ATTR.VIS_MARK])
         if is_being_removed:
             end = now
         length = end - start
@@ -424,7 +424,7 @@ def analyze_job(entry, logscan, is_being_removed, live):
         else:
             print("DRYRUN: Would make a call to visualizer to generate vmd" +
                   " instructions using " + xtc2)
-        entry.attr[ATTR.VIS_MARK] = end
+        entry.attr[ATTR.VIS_MARK] = str(end)
     else:
         print("Waiting for a nanosecond of simulation to pass before" +
               " visualizing.")
