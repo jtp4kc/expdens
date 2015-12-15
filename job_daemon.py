@@ -365,12 +365,12 @@ def analyze_job(entry, logscan, is_being_removed, live):
             count.append(int(number))
         if len(count) > 0:
             count = numpy.array(count, numpy.float32)
-            message1 = "[" + numpy.array2string(count, precision=3,
+            message1 = "[" + numpy.array2string(count, precision=0,
                                          separator=", ") + "]"
             avg = numpy.average(count)
             count /= avg
             count /= numpy.min(count)
-            message2 = "[" + numpy.array2string(count, precision=3,
+            message2 = "[" + numpy.array2string(count, precision=1,
                                          separator=", ") + "]"
 
     if message1 is not None:
