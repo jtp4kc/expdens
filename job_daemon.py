@@ -22,9 +22,11 @@ import signal
 import backup
 import subprocess
 import visualizer
+import numpy
 
 from argparse import ArgumentParser
 from slurm_template import Slurm
+from audioop import avg
 # from argparse import RawDescriptionHelpFormatters
 
 __all__ = []
@@ -328,7 +330,7 @@ def resubmit_job(entry, live, prev=False):
         print("DRYRUN: Would move " + tmpfile + " to " + slurmfile)
         print("DRYRUN: Would sbatch " + slurmfile + " and store job id")
 
-def analyze_job(entry, live):
+def analyze_job(entry, logscan, live):
     tprfile = _filename(entry, "tpr")
     xtcfile = _filename(entry, "xtc")
     xvgfile = _filename(entry, "xvg")
@@ -344,6 +346,26 @@ def analyze_job(entry, live):
         print("Entry " + entry.jobname + " appears to have made no progress")
         print("Old: {0}, New: {1}, Delta: {2}".format(start, end, delta))
     else:
+        message1 = None
+        message2 = None
+        if "Count" in logscan.log_entries:
+            count = logscan.log_numbers["Count"]
+            if len(count) > 0:
+                count = numpy.array(count)
+                message1 = "[" + numpy.array2string(count, precision=3,
+                                             separator=", ") + "]"
+                avg = numpy.average(count)
+                count /= avg
+                count /= numpy.min(count)
+                message2 = "[" + numpy.array2string(count, precision=3,
+                                             separator=", ") + "]"
+
+        if message1 is not None:
+            print("Current number of samples:")
+            print(message1)
+            print("Current ratio of samples:")
+            print(message2)
+
         workdir = os.path.join("daemon-vis", "")
         fldrname = os.path.basename(os.path.dirname(xtcfile))
         newfldr = os.path.join(workdir, fldrname, "")
@@ -451,7 +473,7 @@ def daemon(savefilename, live=False):
                     elif cpt:
                         resubmit_job(entry, live, prev=False)
                     else:  # analyze
-                        analyze_job(entry, live)
+                        analyze_job(entry, logscan, live)
                         if status == "Cancelled":  # if not reschedule
                             remove_job = True
 
