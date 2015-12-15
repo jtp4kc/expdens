@@ -351,6 +351,11 @@ def analyze_job(entry, logscan, is_being_removed, live):
     if ATTR.VIS_MARK not in entry.attr:
         entry.attr[ATTR.VIS_MARK] = 0
 
+    print(("Analysis, step numbers: dt|{0:0.2f} fpn|{1:0.0f} log#steps|" +
+           "{2:0.0f} last|{3:0.0f} now|{4:0.0f} ns|{5:0.0f} vis|{6:0.0f}" +
+           " end|{7:0.0f}").format(dt, frames_per_ns, nstep, last, now,
+           nanoseconds, entry.attr[ATTR.VIS_MARK], end))
+
     message1 = None
     message2 = None
     if "Count" in logscan.log_entries:
@@ -377,7 +382,8 @@ def analyze_job(entry, logscan, is_being_removed, live):
     if delta <= 0:
         print("Entry " + entry.jobname + " appears to have made no progress")
         print("Old: {0}, New: {1}, Delta: {2}".format(last, now, delta))
-    elif (entry.attr[ATTR.VIS_MARK] < end) or is_being_removed:
+
+    if (entry.attr[ATTR.VIS_MARK] < end) or is_being_removed:
         workdir = os.path.join("daemon-vis", "")
         fldrname = os.path.basename(os.path.dirname(xtcfile))
         newfldr = os.path.join(workdir, fldrname, "")
