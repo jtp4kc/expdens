@@ -38,10 +38,13 @@ class CLIError(Exception):
         return self.msg
 
 def update_slurm(filename, cptname=None, ignore=None, resume=None,
-        time=None, copyfile=None):
+        time=None, copyfile=None, cpt=False):
     path = os.path.realpath(filename)
     new = path + ".bak"
     os.system("mv " + path + " " + new)
+
+    if cpt:
+        cptname = os.path.basename(filename).replace(".slurm", ".cpt")
 
     timekey = "--time="
     ignore_active = False
@@ -107,6 +110,9 @@ USAGE
 #        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
 #        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument('-c', "--cpt", help="provide this flag to" +
+            " use the same base name as the slurm as the name of the cpt" +
+            " file", action="store_true")
         parser.add_argument('-n', "--name", help="name of cpt file to " +
             " reference when specifying a restart point")
         parser.add_argument("-i", "--ignore", help="ignore lines after" +
@@ -132,7 +138,11 @@ USAGE
 #         inpat = args.include
 #         expat = args.exclude
         restore = args.restore
+        cpt = False
         name = conv(args.name)
+        if args.cpt:
+            cpt = True
+            name = None
         ignore = conv(args.ignore)
         resume = conv(args.resume)
         time = conv(args.time)
@@ -158,7 +168,7 @@ USAGE
                 os.system("mv " + filename + " " + new)
             if inpath.endswith(".slurm"):
                 print('Modifying ' + inpath)
-                update_slurm(inpath, name, ignore, resume, time, copy)
+                update_slurm(inpath, name, ignore, resume, time, copy, cpt)
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
