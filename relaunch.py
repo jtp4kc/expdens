@@ -110,7 +110,7 @@ USAGE
 #        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE")
 #        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE")
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument('-c', "--cpt", help="provide this flag to" +
+        parser.add_argument('-a', "--cpt", help="provide this flag to" +
             " use the same base name as the slurm as the name of the cpt" +
             " file", action="store_true")
         parser.add_argument('-n', "--name", help="name of cpt file to " +
