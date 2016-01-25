@@ -794,11 +794,11 @@ class BEPGen:
                 self.tpr_files, self.edr_files, self.dhdl_files,
                 self.single_state, self.ligand_res)
             ################################################
-            # Preliminary_analysis
-            self.check_average_energies = 'check_average_energies'
+            # Nc_file_analysis
+            self.write_state_complex = "write-state-trajectory-pdbs"
 
-            section = "Preliminary_analysis"
-            self.add_keys(section, self.check_average_energies)
+            section = "Nc_file_analysis"
+            self.add_keys(section, self.write_state_complex)
 
     KEYS = MyBEPKeys()
     params = Parameters(KEYS)
@@ -1020,7 +1020,7 @@ def make_job(opts, jobsave=None):
     analysis.fields_output[BEPGen.KEYS.xtc_files] = xtc_files
     analysis.fields_output[BEPGen.KEYS.tpr_files] = tpr_files
     analysis.fields_output[BEPGen.KEYS.dhdl_files] = xvg_files
-    analysis.fields_output[BEPGen.KEYS.check_average_energies] = False
+    analysis.fields_output[BEPGen.KEYS.write_state_complex] = False
     if opts[KEYS.sim_fixed_lambda]:
         analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
