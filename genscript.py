@@ -794,11 +794,17 @@ class BEPGen:
                 self.tpr_files, self.edr_files, self.dhdl_files,
                 self.single_state, self.ligand_res)
             ################################################
-            # Nc_file_analysis
+            # Nc File Analysis
             self.write_state_complex = "write-state-trajectory-pdbs"
 
-            section = "Nc_file_analysis"
+            section = "Nc File Analysis"
             self.add_keys(section, self.write_state_complex)
+            ################################################
+            # Main Analysis
+            self.clst_bg_thres = 'cluster_background_threshold'
+
+            section = "Main Analysis"
+            self.add_keys(section, self.clst_bg_thres)
 
     KEYS = MyBEPKeys()
     params = Parameters(KEYS)
@@ -993,7 +999,7 @@ def make_job(opts, jobsave=None):
     num_states = len(opts[KEYS.sim_fep_values]) + num_coup + num_uncp
     num_coup += 1  # assuming fep has one coupled
     num_uncp += 1  # assuming fep has one uncoupled
-    num_frames = int(opts[KEYS._expected_frames] + 1)
+#    num_frames = int(opts[KEYS._expected_frames] + 1)
     if opts[KEYS.sim_init_lambda] >= 0:
         state_index = opts[KEYS.sim_init_lambda]
     else:
@@ -1004,14 +1010,14 @@ def make_job(opts, jobsave=None):
     analysis.fields_output[BEPGen.KEYS.base_func_dir] = ("~/Documents/" +
         "git/binding-ensemble-analysis")
     analysis.fields_output[BEPGen.KEYS.test_job_name] = job_name
-    analysis.fields_output[BEPGen.KEYS.number_of_states] = num_states
-    analysis.fields_output[BEPGen.KEYS.manual_num_states] = True
+#     analysis.fields_output[BEPGen.KEYS.number_of_states] = num_states
+#     analysis.fields_output[BEPGen.KEYS.manual_num_states] = True
     analysis.fields_output[BEPGen.KEYS.coupling_nums] = [num_coup, num_uncp]
     analysis.fields_output[BEPGen.KEYS.ligplot_src] = ("~/Documents/" +
         "LIGPLOT/source/ligplot.scr")
     analysis.fields_output[BEPGen.KEYS.hbdir] = "~/Documents/LIGPLOT"
-    analysis.fields_output[BEPGen.KEYS.iterations_info] = [num_frames, 0]
-    analysis.fields_output[BEPGen.KEYS.last_states_coupled] = False
+#    analysis.fields_output[BEPGen.KEYS.iterations_info] = [num_frames, 0]
+#    analysis.fields_output[BEPGen.KEYS.last_states_coupled] = False
     analysis.fields_output[BEPGen.KEYS.temperature] = opts[KEYS.
         sim_temperature]
     analysis.fields_output[BEPGen.KEYS.verbosity] = 2
@@ -1021,6 +1027,7 @@ def make_job(opts, jobsave=None):
     analysis.fields_output[BEPGen.KEYS.tpr_files] = tpr_files
     analysis.fields_output[BEPGen.KEYS.dhdl_files] = xvg_files
     analysis.fields_output[BEPGen.KEYS.write_state_complex] = False
+    analysis.fields_output[BEPGen.KEYS.clst_bg_thres] = 2
     if opts[KEYS.sim_fixed_lambda]:
         analysis.fields_output[BEPGen.KEYS.single_state] = state_index
 
