@@ -1166,7 +1166,9 @@ def make_mdp(opts, dir_='.', genseed=10200, lmcseed=10200):
     else:
         equil = 'wl-delta'
 
-    init_lambda = (state_index + 1) / len(fep)
+    init_lambda = 0
+    if len(fep) > 1:
+        state_index / (len(fep) - 1)
     if init_lambda < 0:
         init_lambda = 0
     elif init_lambda > 1:
