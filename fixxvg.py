@@ -52,8 +52,7 @@ def fix_xvg(xvgfile):
         print("Unable to read file or no states found, skipping")
         return
 
-    states = np.array(dhdl.states)
-
+    states = dhdl.states
     thermo = -1  # what column does the dhdl info start upon
     deltacount = 0  # how many columns of dhdl info
     energy_info = np.array(dhdl.data)
